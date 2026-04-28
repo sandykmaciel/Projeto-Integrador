@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
+const authRoutes = require("./routes/auth.routes");
+
 const app = express();
 
 app.use(cors());
@@ -13,6 +15,8 @@ app.get("/health", (req, res) => {
     message: "Task Manager API is running",
   });
 });
+
+app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 3333;
 
