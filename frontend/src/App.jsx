@@ -1,39 +1,17 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-
-function RegisterPlaceholder() {
-  return (
-    <main className="page">
-      <section className="card">
-        <div className="logo">✓</div>
-
-        <h1>TaskFlow</h1>
-
-        <h2>Cadastro de usuário</h2>
-
-        <p>
-          A estrutura inicial do frontend foi criada. A tela completa de
-          cadastro será implementada no próximo PR.
-        </p>
-
-        <a href="/login">Ir para login</a>
-      </section>
-    </main>
-  );
-}
+import Register from "./pages/Register";
 
 function LoginPlaceholder() {
   return (
-    <main className="page">
-      <section className="card">
-        <div className="logo">✓</div>
+    <main className="login-page">
+      <section className="login-card">
+        <div className="brand-logo">✓</div>
 
-        <h1>TaskFlow</h1>
-
-        <h2>Login</h2>
+        <h1>Login</h1>
 
         <p>
-          Esta é uma tela provisória. O login será implementado em uma próxima
-          User Story.
+          Cadastro realizado com sucesso. A tela de login será implementada na
+          próxima User Story.
         </p>
 
         <a href="/cadastro">Voltar para cadastro</a>
@@ -47,7 +25,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/cadastro" />} />
-        <Route path="/cadastro" element={<RegisterPlaceholder />} />
+        <Route path="/cadastro" element={<Register />} />
         <Route path="/login" element={<LoginPlaceholder />} />
       </Routes>
     </BrowserRouter>
