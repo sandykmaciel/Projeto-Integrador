@@ -7,6 +7,79 @@ const { isValidEmail, isValidPassword } = require("../utils/validators");
 
 const router = express.Router();
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const BLOCK_TIME_IN_MINUTES = 15;
+
+async function getLoginAttempt(email) {
+  const result = await pool.query(
+    `
+      SELECT id, email, failed_attempts, blocked_until
+      FROM login_attempts
+      WHERE LOWER(email) = LOWER($1)
+    `,
+    [email]
+  );
+
+  return result.rows[0];
+}
+
+async function isEmailBlocked(email) {
+  const loginAttempt = await getLoginAttempt(email);
+
+  if (!loginAttempt || !loginAttempt.blocked_until) {
+    return false;
+  }
+
+  const blockedUntil = new Date(loginAttempt.blocked_until);
+  const now = new Date();
+
+  return blockedUntil > now;
+}
+
+async function registerFailedLoginAttempt(email) {
+  const loginAttempt = await getLoginAttempt(email);
+
+  if (!loginAttempt) {
+    await pool.query(
+      `
+        INSERT INTO login_attempts (email, failed_attempts, last_attempt_at)
+        VALUES ($1, 1, CURRENT_TIMESTAMP)
+      `,
+      [email]
+    );
+
+    return;
+  }
+
+  const nextFailedAttempts = loginAttempt.failed_attempts + 1;
+  const shouldBlock = nextFailedAttempts >= MAX_LOGIN_ATTEMPTS;
+
+  await pool.query(
+    `
+      UPDATE login_attempts
+      SET
+        failed_attempts = $1,
+        blocked_until = CASE
+          WHEN $2 = true THEN CURRENT_TIMESTAMP + INTERVAL '${BLOCK_TIME_IN_MINUTES} minutes'
+          ELSE blocked_until
+        END,
+        last_attempt_at = CURRENT_TIMESTAMP
+      WHERE LOWER(email) = LOWER($3)
+    `,
+    [nextFailedAttempts, shouldBlock, email]
+  );
+}
+
+async function clearLoginAttempts(email) {
+  await pool.query(
+    `
+      DELETE FROM login_attempts
+      WHERE LOWER(email) = LOWER($1)
+    `,
+    [email]
+  );
+}
+
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password, acceptedTerms } = req.body;
@@ -81,16 +154,29 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const blocked = await isEmailBlocked(normalizedEmail);
+
+    if (blocked) {
+      return res.status(429).json({
+        message:
+          "Acesso temporariamente bloqueado por excesso de tentativas. Tente novamente mais tarde.",
+      });
+    }
+
     const userResult = await pool.query(
       `
         SELECT id, name, email, password_hash
         FROM users
         WHERE LOWER(email) = LOWER($1)
       `,
-      [email]
+      [normalizedEmail]
     );
 
     if (userResult.rows.length === 0) {
+      await registerFailedLoginAttempt(normalizedEmail);
+
       return res.status(401).json({
         message: "Email inválido.",
       });
@@ -101,10 +187,14 @@ router.post("/login", async (req, res) => {
     const passwordMatches = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatches) {
+      await registerFailedLoginAttempt(normalizedEmail);
+
       return res.status(401).json({
         message: "Email ou senha incorretos.",
       });
     }
+
+    await clearLoginAttempts(normalizedEmail);
 
     const token = jwt.sign(
       {
