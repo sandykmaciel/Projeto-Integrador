@@ -290,4 +290,101 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        message: "Informe o token e a nova senha.",
+      });
+    }
+
+    if (!isValidPassword(password)) {
+      return res.status(400).json({
+        message:
+          "A senha deve ter no mínimo 4 caracteres e pelo menos uma letra maiúscula.",
+      });
+    }
+
+    const tokenResult = await pool.query(
+      `
+        SELECT
+          password_reset_tokens.id,
+          password_reset_tokens.user_id,
+          password_reset_tokens.expires_at,
+          password_reset_tokens.used_at
+        FROM password_reset_tokens
+        WHERE password_reset_tokens.token = $1
+      `,
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({
+        message: "Link de redefinição inválido.",
+      });
+    }
+
+    const resetToken = tokenResult.rows[0];
+
+    if (resetToken.used_at) {
+      return res.status(400).json({
+        message: "Este link de redefinição já foi utilizado.",
+      });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(resetToken.expires_at);
+
+    if (expiresAt < now) {
+      return res.status(400).json({
+        message: "Este link de redefinição expirou.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await pool.query(
+      `
+        UPDATE users
+        SET password_hash = $1
+        WHERE id = $2
+      `,
+      [passwordHash, resetToken.user_id]
+    );
+
+    await pool.query(
+      `
+        UPDATE password_reset_tokens
+        SET used_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `,
+      [resetToken.id]
+    );
+
+    await pool.query(
+      `
+        DELETE FROM login_attempts
+        WHERE email = (
+          SELECT email
+          FROM users
+          WHERE id = $1
+        )
+      `,
+      [resetToken.user_id]
+    );
+
+    return res.status(200).json({
+      message: "Senha redefinida com sucesso.",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+
+    return res.status(500).json({
+      message: "Erro interno ao redefinir senha.",
+    });
+  }
+});
+
 module.exports = router;
