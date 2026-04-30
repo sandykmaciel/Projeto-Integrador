@@ -1,20 +1,21 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Register from "./pages/Register";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 
-function LoginPlaceholder() {
+function RecoveryPlaceholder() {
   return (
     <main className="login-page">
       <section className="login-card">
         <div className="brand-logo">✓</div>
 
-        <h1>Login</h1>
+        <h1>Recuperar senha</h1>
 
         <p>
-          Cadastro realizado com sucesso. A tela de login será implementada na
-          próxima User Story.
+          A recuperação de senha será implementada no próximo PR deste card.
         </p>
 
-        <a href="/cadastro">Voltar para cadastro</a>
+        <a href="/login">Voltar para login</a>
       </section>
     </main>
   );
@@ -26,7 +27,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/cadastro" />} />
         <Route path="/cadastro" element={<Register />} />
-        <Route path="/login" element={<LoginPlaceholder />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/recuperar-senha" element={<RecoveryPlaceholder />} />
       </Routes>
     </BrowserRouter>
   );

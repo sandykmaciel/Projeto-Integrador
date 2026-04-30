@@ -471,3 +471,143 @@ a:hover {
     font-size: 36px;
   }
 }
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
+  gap: 28px;
+  padding: 28px;
+}
+
+.login-auth-card {
+  min-height: calc(100vh - 56px);
+}
+
+.forgot-password-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+}
+
+.forgot-password-row a {
+  font-size: 14px;
+}
+
+.login-showcase-panel {
+  min-height: calc(100vh - 56px);
+}
+
+.dashboard-page {
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px;
+  border: 1px solid rgba(211, 220, 237, 0.9);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 80px rgba(32, 48, 80, 0.12);
+}
+
+.dashboard-header button {
+  border: none;
+  border-radius: 16px;
+  padding: 13px 20px;
+  cursor: pointer;
+  color: #ffffff;
+  font-weight: 900;
+  background: linear-gradient(135deg, #4763ff, #7a5cff);
+  box-shadow: 0 14px 28px rgba(71, 99, 255, 0.28);
+}
+
+.dashboard-hero {
+  margin-top: 28px;
+  padding: 44px;
+  border: 1px solid rgba(211, 220, 237, 0.9);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at top right, rgba(80, 112, 255, 0.16), transparent 34%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 80px rgba(32, 48, 80, 0.12);
+}
+
+.dashboard-hero h1 {
+  margin: 0;
+  font-size: clamp(38px, 5vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.07em;
+}
+
+.dashboard-hero p {
+  max-width: 680px;
+  margin: 18px 0 0;
+  color: #667085;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.dashboard-grid {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.dashboard-grid article {
+  padding: 30px;
+  border: 1px solid rgba(211, 220, 237, 0.9);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 80px rgba(32, 48, 80, 0.1);
+}
+
+.dashboard-grid strong {
+  display: block;
+  font-size: 42px;
+  letter-spacing: -0.05em;
+  color: #4763ff;
+}
+
+.dashboard-grid span {
+  display: block;
+  margin-top: 8px;
+  color: #667085;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-auth-card,
+  .login-showcase-panel {
+    min-height: auto;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .auth-page,
+  .dashboard-page {
+    padding: 14px;
+  }
+
+  .dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .dashboard-hero {
+    padding: 28px;
+  }
+}
