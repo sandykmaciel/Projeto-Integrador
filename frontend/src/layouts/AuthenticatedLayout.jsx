@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from "react-router-dom";
+import Sidebar from "../components/Sidebar";
 
 export default function AuthenticatedLayout() {
   const token = localStorage.getItem("taskflow:token");
@@ -10,16 +11,7 @@ export default function AuthenticatedLayout() {
 
   return (
     <main className="app-shell">
-      <aside className="app-sidebar-placeholder">
-        <div className="brand compact-brand">
-          <div className="brand-logo">✓</div>
-
-          <div>
-            <strong>TaskFlow</strong>
-            <span>Menu</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar />
 
       <section className="app-content-area">
         <header className="app-navbar-placeholder">
