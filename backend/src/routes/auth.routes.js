@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -221,6 +222,70 @@ router.post("/login", async (req, res) => {
 
     return res.status(500).json({
       message: "Erro interno ao realizar login.",
+    });
+  }
+});
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Informe seu email.",
+      });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        message: "Email inválido.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const userResult = await pool.query(
+      `
+        SELECT id, name, email
+        FROM users
+        WHERE LOWER(email) = LOWER($1)
+      `,
+      [normalizedEmail]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(200).json({
+        message:
+          "Se o email informado estiver cadastrado, enviaremos um link para redefinição de senha.",
+      });
+    }
+
+    const user = userResult.rows[0];
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    await pool.query(
+      `
+        INSERT INTO password_reset_tokens (user_id, token, expires_at)
+        VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '1 hour')
+      `,
+      [user.id, resetToken]
+    );
+
+    const resetLink = `http://localhost:5173/redefinir-senha?token=${resetToken}`;
+
+    console.log("Password reset requested:");
+    console.log(`User: ${user.name} <${user.email}>`);
+    console.log(`Reset link: ${resetLink}`);
+
+    return res.status(200).json({
+      message:
+        "Se o email informado estiver cadastrado, enviaremos um link para redefinição de senha.",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+
+    return res.status(500).json({
+      message: "Erro interno ao solicitar recuperação de senha.",
     });
   }
 });
