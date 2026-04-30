@@ -1,44 +1,15 @@
-import { useNavigate } from "react-router-dom";
-
 export default function Dashboard() {
-  const navigate = useNavigate();
-
-  const user = JSON.parse(localStorage.getItem("taskflow:user") || "null");
-
-  function handleLogout() {
-    localStorage.removeItem("taskflow:token");
-    localStorage.removeItem("taskflow:user");
-
-    navigate("/login");
-  }
-
   return (
-    <main className="dashboard-page">
-      <header className="dashboard-header">
-        <div className="brand">
-          <div className="brand-logo">✓</div>
+    <section className="dashboard-screen">
+      <div className="dashboard-hero">
+        <span className="eyebrow">Dashboard</span>
 
-          <div>
-            <strong>TaskFlow</strong>
-            <span>Dashboard</span>
-          </div>
-        </div>
-
-        <button type="button" onClick={handleLogout}>
-          Sair
-        </button>
-      </header>
-
-      <section className="dashboard-hero">
-        <span className="eyebrow">Área do usuário</span>
-
-        <h1>Olá, {user?.name || "usuário"}.</h1>
+        <h1>Visão geral</h1>
 
         <p>
-          Login realizado com sucesso. Em breve, este painel exibirá seus
-          projetos, tarefas, prazos e notificações.
+          Acompanhe seus projetos, tarefas e notificações em um painel central.
         </p>
-      </section>
+      </div>
 
       <section className="dashboard-grid">
         <article>
@@ -56,6 +27,6 @@ export default function Dashboard() {
           <span>Alertas próximos</span>
         </article>
       </section>
-    </main>
+    </section>
   );
 }
