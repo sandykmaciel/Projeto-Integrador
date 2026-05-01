@@ -630,25 +630,6 @@ a:hover {
   padding: 24px;
 }
 
-.app-navbar-placeholder {
-  min-height: 104px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 24px 28px;
-  border: 1px solid rgba(211, 220, 237, 0.9);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 60px rgba(32, 48, 80, 0.1);
-}
-
-.app-navbar-placeholder h1 {
-  margin: 8px 0 0;
-  font-size: 28px;
-  letter-spacing: -0.05em;
-}
-
 .user-chip {
   width: 48px;
   height: 48px;
@@ -683,11 +664,6 @@ a:hover {
 
   .app-content-area {
     padding: 16px;
-  }
-
-  .app-navbar-placeholder {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }
 
@@ -864,5 +840,202 @@ a:hover {
 
   .module-hero {
     padding: 28px;
+  }
+}
+
+.top-navbar {
+  position: sticky;
+  top: 24px;
+  z-index: 20;
+}
+
+.top-navbar-content {
+  min-height: 104px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border: 1px solid rgba(211, 220, 237, 0.9);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 60px rgba(32, 48, 80, 0.1);
+}
+
+.top-navbar-content h1 {
+  margin: 8px 0 0;
+  font-size: 28px;
+  letter-spacing: -0.05em;
+}
+
+.profile-menu-wrapper {
+  position: relative;
+}
+
+.profile-menu-button {
+  min-width: 260px;
+  border: 1px solid #d0d7e2;
+  border-radius: 20px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #172033;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.profile-menu-button:hover {
+  border-color: #556cff;
+  box-shadow: 0 0 0 5px rgba(85, 108, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.profile-button-text {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.profile-button-text strong,
+.profile-button-text span {
+  display: block;
+}
+
+.profile-button-text strong {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-button-text span {
+  margin-top: 2px;
+  color: #667085;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-menu-arrow {
+  color: #667085;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.user-chip.small {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  font-size: 16px;
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 292px;
+  padding: 12px;
+  border: 1px solid rgba(211, 220, 237, 0.95);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 70px rgba(32, 48, 80, 0.18);
+  z-index: 30;
+}
+
+.profile-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.profile-dropdown-header strong,
+.profile-dropdown-header span {
+  display: block;
+}
+
+.profile-dropdown-header strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.profile-dropdown-header span {
+  margin-top: 2px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.profile-dropdown-nav {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-dropdown-nav a,
+.profile-dropdown-nav button {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: #475467;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.profile-dropdown-nav a:hover,
+.profile-dropdown-nav button:hover {
+  background: #eef2ff;
+  color: #4763ff;
+  text-decoration: none;
+}
+
+.profile-dropdown-nav button {
+  color: #b42318;
+}
+
+.profile-dropdown-nav button:hover {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+@media (max-width: 720px) {
+  .top-navbar {
+    position: relative;
+    top: 0;
+  }
+
+  .top-navbar-content {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-menu-wrapper,
+  .profile-menu-button {
+    width: 100%;
+  }
+
+  .profile-dropdown {
+    position: static;
+    width: 100%;
+    margin-top: 12px;
   }
 }

@@ -7,6 +7,9 @@ import ResetPassword from "./pages/ResetPassword";
 import Projects from "./pages/Projects";
 import Tasks from "./pages/Tasks";
 import TodoList from "./pages/TodoList";
+import ProfileSettings from "./pages/ProfileSettings";
+import Notifications from "./pages/Notifications";
+import History from "./pages/History";
 import AuthenticatedLayout from "./layouts/AuthenticatedLayout";
 
 export default function App() {
@@ -25,6 +28,9 @@ export default function App() {
           <Route path="/projetos" element={<Projects />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/todo-list" element={<TodoList />} />
+          <Route path="/perfil" element={<ProfileSettings />} />
+          <Route path="/notificacoes" element={<Notifications />} />
+          <Route path="/historico" element={<History />} />
         </Route>
       </Routes>
     </BrowserRouter>
