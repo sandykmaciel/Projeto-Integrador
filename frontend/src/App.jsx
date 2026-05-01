@@ -25,12 +25,24 @@ export default function App() {
 
         <Route element={<AuthenticatedLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+
           <Route path="/projetos" element={<Projects />} />
+          <Route path="/projects" element={<Navigate to="/projetos" replace />} />
+
           <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tarefas" element={<Navigate to="/tasks" replace />} />
+
           <Route path="/todo-list" element={<TodoList />} />
+          <Route path="/todos" element={<Navigate to="/todo-list" replace />} />
+
           <Route path="/perfil" element={<ProfileSettings />} />
+          <Route path="/profile" element={<Navigate to="/perfil" replace />} />
+
           <Route path="/notificacoes" element={<Notifications />} />
+          <Route path="/notifications" element={<Navigate to="/notificacoes" replace />} />
+
           <Route path="/historico" element={<History />} />
+          <Route path="/history" element={<Navigate to="/historico" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
