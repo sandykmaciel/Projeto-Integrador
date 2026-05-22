@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 
 export default function Projects() {
+  const currentUser = JSON.parse(localStorage.getItem("taskflow:user") || "null");
+
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -11,6 +13,12 @@ export default function Projects() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [projectToDelete, setProjectToDelete] = useState(null);
+
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberSearchResults, setMemberSearchResults] = useState([]);
+  const [isSearchingMembers, setIsSearchingMembers] = useState(false);
+  const [taskResponsibleId, setTaskResponsibleId] = useState("");
 
   const [editForm, setEditForm] = useState({
     title: "",
@@ -39,18 +47,122 @@ export default function Projects() {
     loadProjects();
   }, []);
 
+  useEffect(() => {
+    if (!isCreateModalOpen || memberSearch.trim().length < 2) {
+      setMemberSearchResults([]);
+      return;
+    }
+
+    let shouldIgnoreResponse = false;
+
+    async function searchMembers() {
+      try {
+        setIsSearchingMembers(true);
+
+        const response = await api.get("/users", {
+          params: {
+            search: memberSearch.trim(),
+          },
+        });
+
+        if (shouldIgnoreResponse) {
+          return;
+        }
+
+        const selectedMemberIds = selectedMembers.map((member) => member.id);
+
+        const availableUsers = response.data.users.filter(
+          (user) => !selectedMemberIds.includes(user.id)
+        );
+
+        setMemberSearchResults(availableUsers);
+      } catch (error) {
+        if (!shouldIgnoreResponse) {
+          setMemberSearchResults([]);
+        }
+      } finally {
+        if (!shouldIgnoreResponse) {
+          setIsSearchingMembers(false);
+        }
+      }
+    }
+
+    const timeoutId = setTimeout(searchMembers, 350);
+
+    return () => {
+      shouldIgnoreResponse = true;
+      clearTimeout(timeoutId);
+    };
+  }, [isCreateModalOpen, memberSearch, selectedMembers]);
+
   function getMemberInitial(memberName) {
     return memberName?.charAt(0)?.toUpperCase() || "U";
   }
 
+  function getDefaultMembers() {
+    if (!currentUser?.id) {
+      return [];
+    }
+
+    return [
+      {
+        id: currentUser.id,
+        name: currentUser.name || "Usuário logado",
+        email: currentUser.email || "",
+        role: "owner",
+      },
+    ];
+  }
+
   function openCreateModal() {
+    const defaultMembers = getDefaultMembers();
+
     setFeedback("");
     setError("");
+    setMemberSearch("");
+    setMemberSearchResults([]);
+    setSelectedMembers(defaultMembers);
+    setTaskResponsibleId(defaultMembers[0]?.id || "");
     setIsCreateModalOpen(true);
   }
 
   function closeCreateModal() {
     setIsCreateModalOpen(false);
+    setMemberSearch("");
+    setMemberSearchResults([]);
+    setSelectedMembers([]);
+    setTaskResponsibleId("");
+  }
+
+  function addMember(member) {
+    setSelectedMembers((currentMembers) => {
+      const memberAlreadySelected = currentMembers.some(
+        (currentMember) => currentMember.id === member.id
+      );
+
+      if (memberAlreadySelected) {
+        return currentMembers;
+      }
+
+      return [...currentMembers, member];
+    });
+
+    setMemberSearch("");
+    setMemberSearchResults([]);
+  }
+
+  function removeMember(memberId) {
+    if (memberId === currentUser?.id) {
+      return;
+    }
+
+    setSelectedMembers((currentMembers) =>
+      currentMembers.filter((member) => member.id !== memberId)
+    );
+
+    if (taskResponsibleId === memberId) {
+      setTaskResponsibleId(currentUser?.id || "");
+    }
   }
 
   function openEditModal(project) {
@@ -324,13 +436,75 @@ export default function Projects() {
                     Membros
                     <input
                       type="text"
-                      placeholder="Digite o nome de um colega"
+                      placeholder="Digite nome ou email de um colega"
+                      value={memberSearch}
+                      onChange={(event) => setMemberSearch(event.target.value)}
                     />
                   </label>
 
-                  <div className="selected-members-preview">
-                    <div className="member-avatar">U</div>
-                    <span>Usuário logado será adicionado por padrão</span>
+                  {isSearchingMembers && (
+                    <div className="member-search-status">
+                      Buscando usuários...
+                    </div>
+                  )}
+
+                  {memberSearchResults.length > 0 && (
+                    <div className="member-search-results">
+                      {memberSearchResults.map((member) => (
+                        <button
+                          type="button"
+                          className="member-search-option"
+                          key={member.id}
+                          onClick={() => addMember(member)}
+                        >
+                          <div className="member-avatar">
+                            {getMemberInitial(member.name)}
+                          </div>
+
+                          <div>
+                            <strong>{member.name}</strong>
+                            <span>{member.email}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {memberSearch.trim().length >= 2 &&
+                    !isSearchingMembers &&
+                    memberSearchResults.length === 0 && (
+                      <div className="member-search-status">
+                        Nenhum usuário encontrado.
+                      </div>
+                    )}
+
+                  <div className="selected-members-list">
+                    {selectedMembers.map((member) => (
+                      <div className="selected-member-pill" key={member.id}>
+                        <div className="member-avatar">
+                          {getMemberInitial(member.name)}
+                        </div>
+
+                        <div>
+                          <strong>{member.name}</strong>
+                          <span>
+                            {member.id === currentUser?.id
+                              ? "Você"
+                              : member.email}
+                          </span>
+                        </div>
+
+                        {member.id !== currentUser?.id && (
+                          <button
+                            type="button"
+                            onClick={() => removeMember(member.id)}
+                            title="Remover membro"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </section>
 
@@ -358,8 +532,17 @@ export default function Projects() {
 
                     <label>
                       Responsável
-                      <select defaultValue="usuario-logado">
-                        <option value="usuario-logado">Usuário logado</option>
+                      <select
+                        value={taskResponsibleId}
+                        onChange={(event) =>
+                          setTaskResponsibleId(event.target.value)
+                        }
+                      >
+                        {selectedMembers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
                       </select>
                     </label>
                   </div>
