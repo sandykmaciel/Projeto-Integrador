@@ -4,7 +4,17 @@ import { api } from "../services/api";
 export default function Projects() {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState("");
+
+  const [editingProject, setEditingProject] = useState(null);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+  });
 
   async function loadProjects() {
     try {
@@ -32,6 +42,95 @@ export default function Projects() {
     return memberName?.charAt(0)?.toUpperCase() || "U";
   }
 
+  function openEditModal(project) {
+    setFeedback("");
+    setError("");
+    setEditingProject(project);
+    setEditForm({
+      title: project.title || "",
+      description: project.description || "",
+    });
+  }
+
+  function closeEditModal() {
+    setEditingProject(null);
+    setEditForm({
+      title: "",
+      description: "",
+    });
+  }
+
+  function handleEditFormChange(event) {
+    const { name, value } = event.target;
+
+    setEditForm((currentData) => ({
+      ...currentData,
+      [name]: value,
+    }));
+  }
+
+  async function handleUpdateProject(event) {
+    event.preventDefault();
+
+    if (!editForm.title.trim()) {
+      setError("Informe o título do projeto.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError("");
+      setFeedback("");
+
+      await api.put(`/projects/${editingProject.id}`, {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+      });
+
+      setFeedback("Projeto atualizado com sucesso.");
+      closeEditModal();
+      await loadProjects();
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Não foi possível atualizar o projeto.";
+
+      setError(message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function openDeleteModal(project) {
+    setFeedback("");
+    setError("");
+    setProjectToDelete(project);
+  }
+
+  function closeDeleteModal() {
+    setProjectToDelete(null);
+  }
+
+  async function handleDeleteProject() {
+    try {
+      setIsSaving(true);
+      setError("");
+      setFeedback("");
+
+      await api.delete(`/projects/${projectToDelete.id}`);
+
+      setFeedback("Projeto excluído com sucesso.");
+      closeDeleteModal();
+      await loadProjects();
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Não foi possível excluir o projeto.";
+
+      setError(message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <section className="module-screen">
       <div className="module-hero projects-hero">
@@ -51,6 +150,13 @@ export default function Projects() {
         </button>
       </div>
 
+      {feedback && (
+        <div className="feedback-card success">
+          <strong>Sucesso</strong>
+          <span>{feedback}</span>
+        </div>
+      )}
+
       {isLoading && (
         <div className="feedback-card">
           <strong>Carregando projetos...</strong>
@@ -60,7 +166,7 @@ export default function Projects() {
 
       {error && (
         <div className="feedback-card error">
-          <strong>Erro ao carregar projetos</strong>
+          <strong>Erro</strong>
           <span>{error}</span>
         </div>
       )}
@@ -82,7 +188,7 @@ export default function Projects() {
         </div>
       )}
 
-      {!isLoading && !error && projects.length > 0 && (
+      {!isLoading && projects.length > 0 && (
         <section className="projects-grid">
           {projects.map((project) => (
             <article className="project-card" key={project.id}>
@@ -93,21 +199,27 @@ export default function Projects() {
                 </div>
 
                 <div className="project-actions">
-                  <button type="button" title="Editar projeto">
+                  <button
+                    type="button"
+                    title="Editar projeto"
+                    onClick={() => openEditModal(project)}
+                  >
                     ✎
                   </button>
 
-                  <button type="button" title="Excluir projeto">
+                  <button
+                    type="button"
+                    title="Excluir projeto"
+                    onClick={() => openDeleteModal(project)}
+                  >
                     ×
                   </button>
                 </div>
               </div>
 
-              {project.description && (
+              {project.description ? (
                 <p className="project-description">{project.description}</p>
-              )}
-
-              {!project.description && (
+              ) : (
                 <p className="project-description muted">
                   Sem descrição cadastrada.
                 </p>
@@ -163,6 +275,109 @@ export default function Projects() {
             </article>
           ))}
         </section>
+      )}
+
+      {editingProject && (
+        <div className="modal-backdrop">
+          <section className="project-modal">
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Editar projeto</span>
+                <h2>Atualizar informações</h2>
+              </div>
+
+              <button type="button" onClick={closeEditModal}>
+                ×
+              </button>
+            </div>
+
+            <form className="project-form" onSubmit={handleUpdateProject}>
+              <label>
+                Título do projeto
+                <input
+                  type="text"
+                  name="title"
+                  placeholder="Ex.: Faculdade"
+                  value={editForm.title}
+                  onChange={handleEditFormChange}
+                />
+              </label>
+
+              <label>
+                Descrição
+                <textarea
+                  name="description"
+                  placeholder="Descreva o objetivo do projeto"
+                  value={editForm.description}
+                  onChange={handleEditFormChange}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-action-button"
+                  onClick={closeEditModal}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-action-button"
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Salvando..." : "Salvar alterações"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {projectToDelete && (
+        <div className="modal-backdrop">
+          <section className="project-modal danger-modal">
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Excluir projeto</span>
+                <h2>Confirmar exclusão</h2>
+              </div>
+
+              <button type="button" onClick={closeDeleteModal}>
+                ×
+              </button>
+            </div>
+
+            <p>
+              Tem certeza que deseja excluir o projeto{" "}
+              <strong>{projectToDelete.title}</strong>?
+            </p>
+
+            <div className="delete-warning">
+              Todas as tarefas vinculadas a este projeto também serão removidas.
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action-button"
+                onClick={closeDeleteModal}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                className="danger-action-button"
+                onClick={handleDeleteProject}
+                disabled={isSaving}
+              >
+                {isSaving ? "Excluindo..." : "Excluir projeto"}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </section>
   );
