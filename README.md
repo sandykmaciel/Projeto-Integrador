@@ -8,7 +8,9 @@ O projeto está sendo desenvolvido para a disciplina de Projeto Integrador.
 
 O objetivo do TaskFlow é oferecer uma plataforma simples e organizada para gerenciamento de tarefas, projetos e listas de atividades, com controle de acesso por autenticação e navegação interna por módulos.
 
-Nesta primeira sprint, o foco foi implementar a base do sistema, incluindo cadastro de usuários, login com autenticação, recuperação de senha e estrutura inicial de navegação autenticada.
+Na primeira sprint, o foco foi implementar a base do sistema, incluindo cadastro de usuários, login com autenticação, recuperação de senha e estrutura inicial de navegação autenticada.
+
+Na segunda sprint, o foco passou a ser a implementação inicial do módulo de projetos, permitindo visualizar projetos em formato de cards, acompanhar progresso, editar informações e excluir projetos com confirmação.
 
 ## Integrantes e responsabilidades
 
@@ -16,7 +18,7 @@ Nesta primeira sprint, o foco foi implementar a base do sistema, incluindo cadas
   Responsável pelo desenvolvimento do card de sidebar e navbar fixa, incluindo layout autenticado, navegação lateral, menu de perfil e rotas internas.
 
 - Luiz Carlos de Paiva Silva  
-  Responsável pelo desenvolvimento dos cards de cadastro e login/autenticação, incluindo backend, frontend, validações, JWT, bloqueio por tentativas e recuperação de senha.
+  Responsável pelo desenvolvimento dos cards de cadastro, login/autenticação e módulo inicial de projetos, incluindo backend, frontend, validações, JWT, recuperação de senha, estrutura de banco e integração com API.
 
 - Sandy Karolina Maciel  
   Product Owner do projeto, responsável pela organização das demandas, acompanhamento dos critérios de aceitação e realização da maioria das revisões de código nos Pull Requests.
@@ -57,7 +59,7 @@ Nesta primeira sprint, o foco foi implementar a base do sistema, incluindo cadas
 - GitHub Projects
 - Pull Requests com revisão obrigatória
 
-## Funcionalidades implementadas na Sprint 1
+## Funcionalidades implementadas
 
 ### Cadastro de usuário
 
@@ -95,6 +97,23 @@ Nesta primeira sprint, o foco foi implementar a base do sistema, incluindo cadas
 - Logout removendo os dados de autenticação do frontend;
 - Redirecionamentos para rotas alternativas.
 
+### Projetos em formato de cards
+
+- Estrutura de banco para projetos;
+- Estrutura de banco para membros de projetos;
+- Estrutura inicial de tarefas vinculadas a projetos;
+- Endpoints protegidos por JWT para listar, criar, editar e excluir projetos;
+- Tela de projetos consumindo a API;
+- Listagem de projetos em formato de cards;
+- Exibição do título do projeto;
+- Exibição da descrição do projeto;
+- Barra de progresso calculada com base nas tarefas vinculadas;
+- Exibição de membros do projeto em formato de avatares;
+- Ações de editar e excluir projeto;
+- Modal de edição de projeto;
+- Modal de confirmação antes da exclusão;
+- Aviso de que tarefas vinculadas também serão removidas ao excluir um projeto.
+
 ## Estrutura do projeto
 
 ```txt
@@ -105,8 +124,11 @@ Projeto-Integrador/
 │   │   ├── database/
 │   │   │   ├── connection.js
 │   │   │   └── migrate.js
+│   │   ├── middlewares/
+│   │   │   └── auth.middleware.js
 │   │   ├── routes/
-│   │   │   └── auth.routes.js
+│   │   │   ├── auth.routes.js
+│   │   │   └── projects.routes.js
 │   │   ├── utils/
 │   │   │   └── validators.js
 │   │   └── server.js
@@ -321,6 +343,56 @@ POST /api/auth/forgot-password
 POST /api/auth/reset-password
 ```
 
+### Listagem de projetos
+
+```http
+GET /api/projects
+```
+
+Retorna os projetos do usuário autenticado, incluindo membros, total de tarefas, tarefas concluídas e progresso calculado.
+
+### Criação de projeto
+
+```http
+POST /api/projects
+```
+
+Cria um novo projeto para o usuário autenticado.
+
+Body esperado:
+
+```json
+{
+  "title": "Faculdade",
+  "description": "Atividades e trabalhos da faculdade"
+}
+```
+
+### Edição de projeto
+
+```http
+PUT /api/projects/:id
+```
+
+Atualiza título e descrição de um projeto existente.
+
+Body esperado:
+
+```json
+{
+  "title": "Faculdade Atualizado",
+  "description": "Atividades, trabalhos e provas da faculdade"
+}
+```
+
+### Exclusão de projeto
+
+```http
+DELETE /api/projects/:id
+```
+
+Exclui um projeto do usuário autenticado. As tarefas e membros vinculados ao projeto também são removidos por relacionamento em cascata no banco.
+
 ## GitHub Projects
 
 Link do board da Sprint 1:
@@ -372,7 +444,7 @@ A branch `main` possui proteção para exigir Pull Request antes do merge.
 
 Foram adicionados testes unitários para validar regras utilizadas nas funcionalidades da Sprint 1.
 
-A suíte de testes pode ser executada com:
+A suíte de testes pode ser executada dentro da pasta `backend` com:
 
 ```bash
 npm test
@@ -383,3 +455,5 @@ Os testes devem executar sem falhas.
 ## Observações
 
 O envio real de email na recuperação de senha foi simulado no console do backend durante a Sprint 1. A integração com serviço real de email poderá ser adicionada em uma sprint futura.
+
+A criação de projetos pela interface será implementada em um próximo card, que contempla o fluxo completo de criação de projeto junto com a tarefa inicial.
