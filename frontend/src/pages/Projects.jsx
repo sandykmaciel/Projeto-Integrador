@@ -8,6 +8,7 @@ export default function Projects() {
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [projectToDelete, setProjectToDelete] = useState(null);
 
@@ -40,6 +41,16 @@ export default function Projects() {
 
   function getMemberInitial(memberName) {
     return memberName?.charAt(0)?.toUpperCase() || "U";
+  }
+
+  function openCreateModal() {
+    setFeedback("");
+    setError("");
+    setIsCreateModalOpen(true);
+  }
+
+  function closeCreateModal() {
+    setIsCreateModalOpen(false);
   }
 
   function openEditModal(project) {
@@ -145,8 +156,12 @@ export default function Projects() {
           </p>
         </div>
 
-        <button type="button" className="primary-action-button">
-          Novo projeto
+        <button
+          type="button"
+          className="primary-action-button"
+          onClick={openCreateModal}
+        >
+          + Novo projeto
         </button>
       </div>
 
@@ -182,7 +197,11 @@ export default function Projects() {
             faculdade, rotina pessoal ou qualquer outro contexto.
           </p>
 
-          <button type="button" className="primary-action-button">
+          <button
+            type="button"
+            className="primary-action-button"
+            onClick={openCreateModal}
+          >
             Criar primeiro projeto
           </button>
         </div>
@@ -275,6 +294,141 @@ export default function Projects() {
             </article>
           ))}
         </section>
+      )}
+
+      {isCreateModalOpen && (
+        <div className="modal-backdrop">
+          <section className="project-modal large-project-modal">
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Novo projeto</span>
+                <h2>Criar projeto e tarefa inicial</h2>
+              </div>
+
+              <button type="button" onClick={closeCreateModal}>
+                ×
+              </button>
+            </div>
+
+            <div className="project-creation-layout">
+              <div className="project-creation-column">
+                <section className="creation-section">
+                  <h3>Dados do projeto</h3>
+
+                  <label>
+                    Nome do Projeto
+                    <input type="text" placeholder="Ex.: Faculdade" />
+                  </label>
+
+                  <label>
+                    Membros
+                    <input
+                      type="text"
+                      placeholder="Digite o nome de um colega"
+                    />
+                  </label>
+
+                  <div className="selected-members-preview">
+                    <div className="member-avatar">U</div>
+                    <span>Usuário logado será adicionado por padrão</span>
+                  </div>
+                </section>
+
+                <section className="creation-section">
+                  <h3>Criar tarefa inicial</h3>
+
+                  <label>
+                    Título
+                    <input
+                      type="text"
+                      placeholder="Ex.: Entregar relatório"
+                    />
+                  </label>
+
+                  <label>
+                    Descrição
+                    <textarea placeholder="Descreva a primeira atividade do projeto" />
+                  </label>
+
+                  <div className="form-row">
+                    <label>
+                      Data Final
+                      <input type="date" />
+                    </label>
+
+                    <label>
+                      Responsável
+                      <select defaultValue="usuario-logado">
+                        <option value="usuario-logado">Usuário logado</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label>
+                    Prioridade
+                    <select defaultValue="medium">
+                      <option value="medium">Média</option>
+                      <option value="high">Alta</option>
+                      <option value="low">Baixa</option>
+                    </select>
+                  </label>
+                </section>
+              </div>
+
+              <section className="tasks-preview-section">
+                <div className="tasks-preview-header">
+                  <div>
+                    <h3>Listagem de Tarefas</h3>
+                    <p>
+                      A tarefa inicial aparecerá nesta listagem após ser
+                      adicionada ao projeto.
+                    </p>
+                  </div>
+                </div>
+
+                <label>
+                  Filtro de busca
+                  <input type="text" placeholder="Buscar tarefa pelo nome" />
+                </label>
+
+                <div className="tasks-table-wrapper">
+                  <table className="tasks-table">
+                    <thead>
+                      <tr>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Prioridade</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      <tr>
+                        <td colSpan="4" className="empty-table-cell">
+                          Nenhuma tarefa adicionada ainda.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action-button"
+                onClick={closeCreateModal}
+              >
+                Cancelar
+              </button>
+
+              <button type="button" className="primary-action-button" disabled>
+                Criar projeto
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {editingProject && (
