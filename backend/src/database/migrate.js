@@ -81,15 +81,26 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS tasks (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        assigned_user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
         title VARCHAR(180) NOT NULL,
         description TEXT NULL,
         status VARCHAR(40) NOT NULL DEFAULT 'pending',
         priority VARCHAR(40) NOT NULL DEFAULT 'medium',
         due_date TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+        pdated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+    await pool.query(`
+      ALTER TABLE tasks
+      ADD COLUMN IF NOT EXISTS assigned_user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL;
+`);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tasks_assigned_user_id_idx
+      ON tasks (assigned_user_id);
+`);
 
     console.log("Migrations executed successfully.");
   } catch (error) {
