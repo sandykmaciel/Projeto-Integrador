@@ -1,5 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
+
+const priorityLabels = {
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+};
 
 export default function Projects() {
   const currentUser = JSON.parse(localStorage.getItem("taskflow:user") || "null");
@@ -18,12 +24,65 @@ export default function Projects() {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberSearchResults, setMemberSearchResults] = useState([]);
   const [isSearchingMembers, setIsSearchingMembers] = useState(false);
-  const [taskResponsibleId, setTaskResponsibleId] = useState("");
+
+  const [createForm, setCreateForm] = useState({
+    projectTitle: "",
+    projectDescription: "",
+    taskTitle: "",
+    taskDescription: "",
+    taskDueDate: "",
+    taskPriority: "medium",
+    taskResponsibleId: "",
+    taskSearch: "",
+  });
 
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
   });
+
+  const initialTaskPreview = useMemo(() => {
+    if (!createForm.taskTitle.trim()) {
+      return [];
+    }
+
+    const responsible = selectedMembers.find(
+      (member) => member.id === createForm.taskResponsibleId
+    );
+
+    return [
+      {
+        id: "initial-task-preview",
+        title: createForm.taskTitle.trim(),
+        status: "Pendente",
+        priority: createForm.taskPriority,
+        dueDate: createForm.taskDueDate,
+        responsibleName: responsible?.name || "Usuário logado",
+      },
+    ];
+  }, [
+    createForm.taskTitle,
+    createForm.taskPriority,
+    createForm.taskDueDate,
+    createForm.taskResponsibleId,
+    selectedMembers,
+  ]);
+
+  const filteredInitialTasks = useMemo(() => {
+    const search = createForm.taskSearch.trim().toLowerCase();
+
+    if (!search) {
+      return initialTaskPreview;
+    }
+
+    return initialTaskPreview.filter((task) =>
+      task.title.toLowerCase().includes(search)
+    );
+  }, [createForm.taskSearch, initialTaskPreview]);
+
+  function getTodayInputValue() {
+    return new Date().toISOString().split("T")[0];
+  }
 
   async function loadProjects() {
     try {
@@ -114,6 +173,19 @@ export default function Projects() {
     ];
   }
 
+  function resetCreateForm() {
+    setCreateForm({
+      projectTitle: "",
+      projectDescription: "",
+      taskTitle: "",
+      taskDescription: "",
+      taskDueDate: "",
+      taskPriority: "medium",
+      taskResponsibleId: "",
+      taskSearch: "",
+    });
+  }
+
   function openCreateModal() {
     const defaultMembers = getDefaultMembers();
 
@@ -122,7 +194,16 @@ export default function Projects() {
     setMemberSearch("");
     setMemberSearchResults([]);
     setSelectedMembers(defaultMembers);
-    setTaskResponsibleId(defaultMembers[0]?.id || "");
+    setCreateForm({
+      projectTitle: "",
+      projectDescription: "",
+      taskTitle: "",
+      taskDescription: "",
+      taskDueDate: "",
+      taskPriority: "medium",
+      taskResponsibleId: defaultMembers[0]?.id || "",
+      taskSearch: "",
+    });
     setIsCreateModalOpen(true);
   }
 
@@ -131,7 +212,16 @@ export default function Projects() {
     setMemberSearch("");
     setMemberSearchResults([]);
     setSelectedMembers([]);
-    setTaskResponsibleId("");
+    resetCreateForm();
+  }
+
+  function handleCreateFormChange(event) {
+    const { name, value } = event.target;
+
+    setCreateForm((currentData) => ({
+      ...currentData,
+      [name]: value,
+    }));
   }
 
   function addMember(member) {
@@ -160,8 +250,81 @@ export default function Projects() {
       currentMembers.filter((member) => member.id !== memberId)
     );
 
-    if (taskResponsibleId === memberId) {
-      setTaskResponsibleId(currentUser?.id || "");
+    if (createForm.taskResponsibleId === memberId) {
+      setCreateForm((currentData) => ({
+        ...currentData,
+        taskResponsibleId: currentUser?.id || "",
+      }));
+    }
+  }
+
+  function validateCreateForm() {
+    if (!createForm.projectTitle.trim()) {
+      return "Informe o nome do projeto.";
+    }
+
+    if (!createForm.taskTitle.trim()) {
+      return "Informe o título da tarefa inicial.";
+    }
+
+    if (!createForm.taskDueDate) {
+      return "Informe a data final da tarefa inicial.";
+    }
+
+    if (createForm.taskDueDate < getTodayInputValue()) {
+      return "A data final da tarefa não pode ser anterior à data atual.";
+    }
+
+    if (!createForm.taskResponsibleId) {
+      return "Informe o responsável pela tarefa inicial.";
+    }
+
+    return "";
+  }
+
+  async function handleCreateProject() {
+    const validationError = validateCreateForm();
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError("");
+      setFeedback("");
+
+      const memberIds = selectedMembers
+        .filter((member) => member.id !== currentUser?.id)
+        .map((member) => member.id);
+
+      await api.post("/projects/with-initial-task", {
+        project: {
+          title: createForm.projectTitle.trim(),
+          description: createForm.projectDescription.trim(),
+          memberIds,
+        },
+        task: {
+          title: createForm.taskTitle.trim(),
+          description: createForm.taskDescription.trim(),
+          dueDate: createForm.taskDueDate,
+          priority: createForm.taskPriority,
+          assignedUserId: createForm.taskResponsibleId,
+        },
+      });
+
+      setFeedback("Projeto e tarefa inicial criados com sucesso.");
+      closeCreateModal();
+      await loadProjects();
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Não foi possível criar o projeto com tarefa inicial.";
+
+      setError(message);
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -429,7 +592,23 @@ export default function Projects() {
 
                   <label>
                     Nome do Projeto
-                    <input type="text" placeholder="Ex.: Faculdade" />
+                    <input
+                      type="text"
+                      name="projectTitle"
+                      placeholder="Ex.: Faculdade"
+                      value={createForm.projectTitle}
+                      onChange={handleCreateFormChange}
+                    />
+                  </label>
+
+                  <label>
+                    Descrição do Projeto
+                    <textarea
+                      name="projectDescription"
+                      placeholder="Descreva o objetivo do projeto"
+                      value={createForm.projectDescription}
+                      onChange={handleCreateFormChange}
+                    />
                   </label>
 
                   <label>
@@ -515,28 +694,41 @@ export default function Projects() {
                     Título
                     <input
                       type="text"
+                      name="taskTitle"
                       placeholder="Ex.: Entregar relatório"
+                      value={createForm.taskTitle}
+                      onChange={handleCreateFormChange}
                     />
                   </label>
 
                   <label>
                     Descrição
-                    <textarea placeholder="Descreva a primeira atividade do projeto" />
+                    <textarea
+                      name="taskDescription"
+                      placeholder="Descreva a primeira atividade do projeto"
+                      value={createForm.taskDescription}
+                      onChange={handleCreateFormChange}
+                    />
                   </label>
 
                   <div className="form-row">
                     <label>
                       Data Final
-                      <input type="date" />
+                      <input
+                        type="date"
+                        name="taskDueDate"
+                        min={getTodayInputValue()}
+                        value={createForm.taskDueDate}
+                        onChange={handleCreateFormChange}
+                      />
                     </label>
 
                     <label>
                       Responsável
                       <select
-                        value={taskResponsibleId}
-                        onChange={(event) =>
-                          setTaskResponsibleId(event.target.value)
-                        }
+                        name="taskResponsibleId"
+                        value={createForm.taskResponsibleId}
+                        onChange={handleCreateFormChange}
                       >
                         {selectedMembers.map((member) => (
                           <option key={member.id} value={member.id}>
@@ -549,7 +741,11 @@ export default function Projects() {
 
                   <label>
                     Prioridade
-                    <select defaultValue="medium">
+                    <select
+                      name="taskPriority"
+                      value={createForm.taskPriority}
+                      onChange={handleCreateFormChange}
+                    >
                       <option value="medium">Média</option>
                       <option value="high">Alta</option>
                       <option value="low">Baixa</option>
@@ -561,17 +757,23 @@ export default function Projects() {
               <section className="tasks-preview-section">
                 <div className="tasks-preview-header">
                   <div>
-                    <h3>Listagem de Tarefas</h3>
+                    <h3>Minhas Tarefas</h3>
                     <p>
-                      A tarefa inicial aparecerá nesta listagem após ser
-                      adicionada ao projeto.
+                      A tarefa inicial aparece abaixo enquanto você preenche o
+                      formulário.
                     </p>
                   </div>
                 </div>
 
                 <label>
                   Filtro de busca
-                  <input type="text" placeholder="Buscar tarefa pelo nome" />
+                  <input
+                    type="text"
+                    name="taskSearch"
+                    placeholder="Buscar tarefa pelo nome"
+                    value={createForm.taskSearch}
+                    onChange={handleCreateFormChange}
+                  />
                 </label>
 
                 <div className="tasks-table-wrapper">
@@ -580,17 +782,54 @@ export default function Projects() {
                       <tr>
                         <th>Task</th>
                         <th>Status</th>
+                        <th>Data Final</th>
                         <th>Prioridade</th>
                         <th>Ações</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      <tr>
-                        <td colSpan="4" className="empty-table-cell">
-                          Nenhuma tarefa adicionada ainda.
-                        </td>
-                      </tr>
+                      {filteredInitialTasks.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="empty-table-cell">
+                            Nenhuma tarefa encontrada.
+                          </td>
+                        </tr>
+                      )}
+
+                      {filteredInitialTasks.map((task) => (
+                        <tr key={task.id}>
+                          <td>
+                            <strong>{task.title}</strong>
+                            <span className="task-responsible">
+                              {task.responsibleName}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="task-status-pill">
+                              {task.status}
+                            </span>
+                          </td>
+                          <td>{task.dueDate || "-"}</td>
+                          <td>
+                            <span
+                              className={`task-priority-pill ${task.priority}`}
+                            >
+                              {priorityLabels[task.priority]}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="task-table-actions">
+                              <button type="button" title="Editar tarefa">
+                                ✎
+                              </button>
+                              <button type="button" title="Excluir tarefa">
+                                ×
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -606,8 +845,13 @@ export default function Projects() {
                 Cancelar
               </button>
 
-              <button type="button" className="primary-action-button" disabled>
-                Criar projeto
+              <button
+                type="button"
+                className="primary-action-button"
+                onClick={handleCreateProject}
+                disabled={isSaving}
+              >
+                {isSaving ? "Criando..." : "Criar projeto"}
               </button>
             </div>
           </section>
