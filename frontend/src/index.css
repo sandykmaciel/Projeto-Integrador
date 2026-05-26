@@ -1991,3 +1991,8 @@ a:hover {
 .modal-feedback {
   margin: 0 0 18px;
 }
+
+.clickable-project-card:focus {
+  outline: 3px solid rgba(85, 108, 255, 0.35);
+  outline-offset: 4px;
+}

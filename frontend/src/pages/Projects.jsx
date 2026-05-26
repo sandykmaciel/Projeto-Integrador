@@ -492,7 +492,15 @@ export default function Projects() {
             <article
               className="project-card clickable-project-card"
               key={project.id}
+              role="button"
+              tabIndex={0}
               onClick={() => navigate(`/projetos/${project.id}`)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  navigate(`/projetos/${project.id}`);
+                }
+              }}
             >
               <div className="project-card-header">
                 <div>
