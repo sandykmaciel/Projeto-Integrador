@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
 jobs:
   build-test-and-analyze:
     name: Build, test and analyze project
