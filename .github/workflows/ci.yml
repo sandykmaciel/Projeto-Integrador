@@ -6,13 +6,15 @@ on:
       - main
 
 jobs:
-  build-and-test:
-    name: Build and test project
+  build-test-and-analyze:
+    name: Build, test and analyze project
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -27,9 +29,9 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         working-directory: backend
-        run: npm test
+        run: npm run test:coverage
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -38,3 +40,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Run SonarCloud analysis
+        uses: sonarsource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
