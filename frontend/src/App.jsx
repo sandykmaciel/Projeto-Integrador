@@ -11,6 +11,7 @@ import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
 import History from "./pages/History";
 import AuthenticatedLayout from "./layouts/AuthenticatedLayout";
+import ProjectDetails from "./pages/ProjectDetails";
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
 
           <Route path="/projetos" element={<Projects />} />
+          <Route path="/projetos/:id" element={<ProjectDetails />} />
           <Route path="/projects" element={<Navigate to="/projetos" replace />} />
 
           <Route path="/tasks" element={<Tasks />} />

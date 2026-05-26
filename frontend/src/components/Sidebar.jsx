@@ -43,7 +43,9 @@ export default function Sidebar() {
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              isActive ? "sidebar-link active" : "sidebar-link"
+              isActive || window.location.pathname.startsWith(`${item.path}/`)
+                ? "sidebar-link active"
+                : "sidebar-link"
             }
           >
             <span className="sidebar-icon">{item.icon}</span>

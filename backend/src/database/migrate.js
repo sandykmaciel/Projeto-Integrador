@@ -88,8 +88,34 @@ async function migrate() {
         priority VARCHAR(40) NOT NULL DEFAULT 'medium',
         due_date TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        pdated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
+`);
+
+    await pool.query(`
+  DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'tasks'
+        AND column_name = 'pdated_at'
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'tasks'
+        AND column_name = 'updated_at'
+    )
+    THEN
+      ALTER TABLE tasks RENAME COLUMN pdated_at TO updated_at;
+    END IF;
+  END $$;
+`);
+
+    await pool.query(`
+      ALTER TABLE tasks
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 `);
 
     await pool.query(`
