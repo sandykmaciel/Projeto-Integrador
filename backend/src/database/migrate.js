@@ -105,6 +105,7 @@ async function migrate() {
     console.log("Migrations executed successfully.");
   } catch (error) {
     console.error("Migration failed:", error);
+    process.exitCode = 1;
   } finally {
     await pool.end();
   }
