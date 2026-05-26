@@ -7,6 +7,19 @@ const router = express.Router();
 
 router.use(ensureAuthenticated);
 
+const TASK_RETURNING_FIELDS = `
+  id,
+  project_id,
+  assigned_user_id,
+  title,
+  description,
+  status,
+  priority,
+  due_date,
+  created_at,
+  updated_at
+`;
+
 function isDateBeforeToday(date) {
   const informedDate = new Date(date);
   const today = new Date();
@@ -21,6 +34,68 @@ function normalizeMemberIds(memberIds, userId) {
   const safeMemberIds = Array.isArray(memberIds) ? memberIds : [];
 
   return [...new Set([userId, ...safeMemberIds])];
+}
+
+function normalizeTaskStatus(status) {
+  const allowedStatuses = ["pending", "in_progress", "completed"];
+
+  return allowedStatuses.includes(status) ? status : "pending";
+}
+
+function normalizeTaskPriority(priority) {
+  const allowedPriorities = ["low", "medium", "high"];
+
+  return allowedPriorities.includes(priority) ? priority : "medium";
+}
+
+function buildProjectDetailsQuery(whereClause) {
+  return `
+    SELECT
+      projects.id,
+      projects.owner_id,
+      projects.title,
+      projects.description,
+      projects.created_at,
+      projects.updated_at,
+      COALESCE(tasks_summary.total_tasks, 0)::int AS total_tasks,
+      COALESCE(tasks_summary.completed_tasks, 0)::int AS completed_tasks,
+      CASE
+        WHEN COALESCE(tasks_summary.total_tasks, 0) = 0 THEN 0
+        ELSE ROUND(
+          (tasks_summary.completed_tasks::decimal / tasks_summary.total_tasks::decimal) * 100
+        )::int
+      END AS progress,
+      COALESCE(members_summary.members, '[]') AS members
+    FROM projects
+    LEFT JOIN (
+      SELECT
+        project_id,
+        COUNT(*)::int AS total_tasks,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END)::int AS completed_tasks
+      FROM tasks
+      GROUP BY project_id
+    ) AS tasks_summary
+      ON tasks_summary.project_id = projects.id
+    LEFT JOIN (
+      SELECT
+        project_members.project_id,
+        JSON_AGG(
+          JSONB_BUILD_OBJECT(
+            'id', users.id,
+            'name', users.name,
+            'email', users.email,
+            'role', project_members.role
+          )
+          ORDER BY project_members.created_at ASC
+        ) AS members
+      FROM project_members
+      INNER JOIN users
+        ON users.id = project_members.user_id
+      GROUP BY project_members.project_id
+    ) AS members_summary
+      ON members_summary.project_id = projects.id
+    ${whereClause}
+  `;
 }
 
 async function userHasProjectAccess(projectId, userId) {
@@ -73,16 +148,76 @@ async function isUserProjectMember(projectId, userId) {
   return result.rows.length > 0;
 }
 
-function normalizeTaskStatus(status) {
-  const allowedStatuses = ["pending", "in_progress", "completed"];
+async function validateProjectAccess(projectId, userId) {
+  const hasAccess = await userHasProjectAccess(projectId, userId);
 
-  return allowedStatuses.includes(status) ? status : "pending";
+  if (!hasAccess) {
+    return {
+      isValid: false,
+      status: 404,
+      message: "Projeto não encontrado.",
+    };
+  }
+
+  return {
+    isValid: true,
+  };
 }
 
-function normalizeTaskPriority(priority) {
-  const allowedPriorities = ["low", "medium", "high"];
+async function validateTaskPayload(projectId, userId, payload) {
+  const { title, dueDate, assignedUserId } = payload;
 
-  return allowedPriorities.includes(priority) ? priority : "medium";
+  if (!title || !title.trim()) {
+    return {
+      isValid: false,
+      status: 400,
+      message: "Informe o título da tarefa.",
+    };
+  }
+
+  if (!dueDate) {
+    return {
+      isValid: false,
+      status: 400,
+      message: "Informe a data final da tarefa.",
+    };
+  }
+
+  if (isDateBeforeToday(dueDate)) {
+    return {
+      isValid: false,
+      status: 400,
+      message: "A data final da tarefa não pode ser anterior à data atual.",
+    };
+  }
+
+  const accessValidation = await validateProjectAccess(projectId, userId);
+
+  if (!accessValidation.isValid) {
+    return accessValidation;
+  }
+
+  const responsibleId = assignedUserId || userId;
+  const isResponsibleMember = await isUserProjectMember(projectId, responsibleId);
+
+  if (!isResponsibleMember) {
+    return {
+      isValid: false,
+      status: 400,
+      message: "O responsável da tarefa deve ser membro do projeto.",
+    };
+  }
+
+  return {
+    isValid: true,
+    responsibleId,
+  };
+}
+
+function sendValidationError(res, validation) {
+  return res.status(validation.status).json({
+    message: validation.message,
+  });
 }
 
 router.get("/", async (req, res) => {
@@ -91,55 +226,14 @@ router.get("/", async (req, res) => {
 
     const result = await pool.query(
       `
-        SELECT
-          projects.id,
-          projects.title,
-          projects.description,
-          projects.created_at,
-          projects.updated_at,
-          COALESCE(tasks_summary.total_tasks, 0)::int AS total_tasks,
-          COALESCE(tasks_summary.completed_tasks, 0)::int AS completed_tasks,
-          CASE
-            WHEN COALESCE(tasks_summary.total_tasks, 0) = 0 THEN 0
-            ELSE ROUND(
-              (tasks_summary.completed_tasks::decimal / tasks_summary.total_tasks::decimal) * 100
-            )::int
-          END AS progress,
-          COALESCE(members_summary.members, '[]') AS members
-        FROM projects
-        LEFT JOIN (
-          SELECT
-            project_id,
-            COUNT(*)::int AS total_tasks,
-            COUNT(CASE WHEN status = 'completed' THEN 1 END)::int AS completed_tasks
-          FROM tasks
-          GROUP BY project_id
-        ) AS tasks_summary
-          ON tasks_summary.project_id = projects.id
-        LEFT JOIN (
-          SELECT
-            project_members.project_id,
-            JSON_AGG(
-              JSONB_BUILD_OBJECT(
-                'id', users.id,
-                'name', users.name,
-                'email', users.email,
-                'role', project_members.role
-              )
-              ORDER BY project_members.created_at ASC
-            ) AS members
-          FROM project_members
-          INNER JOIN users
-            ON users.id = project_members.user_id
-          GROUP BY project_members.project_id
-        ) AS members_summary
-          ON members_summary.project_id = projects.id
-        WHERE projects.owner_id = $1
-          OR projects.id IN (
-            SELECT project_id
-            FROM project_members
-            WHERE user_id = $1
-          )
+        ${buildProjectDetailsQuery(`
+          WHERE projects.owner_id = $1
+            OR projects.id IN (
+              SELECT project_id
+              FROM project_members
+              WHERE user_id = $1
+            )
+        `)}
         ORDER BY projects.created_at DESC
       `,
       [userId]
@@ -164,59 +258,17 @@ router.get("/:id", async (req, res) => {
 
     const result = await pool.query(
       `
-        SELECT
-          projects.id,
-          projects.owner_id,
-          projects.title,
-          projects.description,
-          projects.created_at,
-          projects.updated_at,
-          COALESCE(tasks_summary.total_tasks, 0)::int AS total_tasks,
-          COALESCE(tasks_summary.completed_tasks, 0)::int AS completed_tasks,
-          CASE
-            WHEN COALESCE(tasks_summary.total_tasks, 0) = 0 THEN 0
-            ELSE ROUND(
-              (tasks_summary.completed_tasks::decimal / tasks_summary.total_tasks::decimal) * 100
-            )::int
-          END AS progress,
-          COALESCE(members_summary.members, '[]') AS members
-        FROM projects
-        LEFT JOIN (
-          SELECT
-            project_id,
-            COUNT(*)::int AS total_tasks,
-            COUNT(CASE WHEN status = 'completed' THEN 1 END)::int AS completed_tasks
-          FROM tasks
-          GROUP BY project_id
-        ) AS tasks_summary
-          ON tasks_summary.project_id = projects.id
-        LEFT JOIN (
-          SELECT
-            project_members.project_id,
-            JSON_AGG(
-              JSONB_BUILD_OBJECT(
-                'id', users.id,
-                'name', users.name,
-                'email', users.email,
-                'role', project_members.role
+        ${buildProjectDetailsQuery(`
+          WHERE projects.id = $1
+            AND (
+              projects.owner_id = $2
+              OR projects.id IN (
+                SELECT project_id
+                FROM project_members
+                WHERE user_id = $2
               )
-              ORDER BY project_members.created_at ASC
-            ) AS members
-          FROM project_members
-          INNER JOIN users
-            ON users.id = project_members.user_id
-          GROUP BY project_members.project_id
-        ) AS members_summary
-          ON members_summary.project_id = projects.id
-        WHERE projects.id = $1
-          AND (
-            projects.owner_id = $2
-            OR projects.id IN (
-              SELECT project_id
-              FROM project_members
-              WHERE user_id = $2
             )
-          )
+        `)}
         LIMIT 1
       `,
       [id, userId]
@@ -245,12 +297,10 @@ router.get("/:id/tasks", async (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
 
-    const hasAccess = await userHasProjectAccess(id, userId);
+    const accessValidation = await validateProjectAccess(id, userId);
 
-    if (!hasAccess) {
-      return res.status(404).json({
-        message: "Projeto não encontrado.",
-      });
+    if (!accessValidation.isValid) {
+      return sendValidationError(res, accessValidation);
     }
 
     const result = await pool.query(
@@ -382,17 +432,7 @@ router.post("/with-initial-task", async (req, res) => {
           due_date
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING
-          id,
-          project_id,
-          assigned_user_id,
-          title,
-          description,
-          status,
-          priority,
-          due_date,
-          created_at,
-          updated_at
+        RETURNING ${TASK_RETURNING_FIELDS}
       `,
       [
         createdProject.id,
@@ -438,39 +478,14 @@ router.post("/:id/tasks", async (req, res) => {
       status,
     } = req.body;
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        message: "Informe o título da tarefa.",
-      });
-    }
+    const validation = await validateTaskPayload(id, userId, {
+      title,
+      dueDate,
+      assignedUserId,
+    });
 
-    if (!dueDate) {
-      return res.status(400).json({
-        message: "Informe a data final da tarefa.",
-      });
-    }
-
-    if (isDateBeforeToday(dueDate)) {
-      return res.status(400).json({
-        message: "A data final da tarefa não pode ser anterior à data atual.",
-      });
-    }
-
-    const hasAccess = await userHasProjectAccess(id, userId);
-
-    if (!hasAccess) {
-      return res.status(404).json({
-        message: "Projeto não encontrado.",
-      });
-    }
-
-    const responsibleId = assignedUserId || userId;
-    const isResponsibleMember = await isUserProjectMember(id, responsibleId);
-
-    if (!isResponsibleMember) {
-      return res.status(400).json({
-        message: "O responsável da tarefa deve ser membro do projeto.",
-      });
+    if (!validation.isValid) {
+      return sendValidationError(res, validation);
     }
 
     const result = await pool.query(
@@ -485,21 +500,11 @@ router.post("/:id/tasks", async (req, res) => {
           due_date
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING
-          id,
-          project_id,
-          assigned_user_id,
-          title,
-          description,
-          status,
-          priority,
-          due_date,
-          created_at,
-          updated_at
+        RETURNING ${TASK_RETURNING_FIELDS}
       `,
       [
         id,
-        responsibleId,
+        validation.responsibleId,
         title.trim(),
         description?.trim() || null,
         normalizeTaskStatus(status),
@@ -593,33 +598,14 @@ router.put("/:id/tasks/:taskId", async (req, res) => {
       status,
     } = req.body;
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        message: "Informe o título da tarefa.",
-      });
-    }
+    const validation = await validateTaskPayload(id, userId, {
+      title,
+      dueDate,
+      assignedUserId,
+    });
 
-    if (!dueDate) {
-      return res.status(400).json({
-        message: "Informe a data final da tarefa.",
-      });
-    }
-
-    const hasAccess = await userHasProjectAccess(id, userId);
-
-    if (!hasAccess) {
-      return res.status(404).json({
-        message: "Projeto não encontrado.",
-      });
-    }
-
-    const responsibleId = assignedUserId || userId;
-    const isResponsibleMember = await isUserProjectMember(id, responsibleId);
-
-    if (!isResponsibleMember) {
-      return res.status(400).json({
-        message: "O responsável da tarefa deve ser membro do projeto.",
-      });
+    if (!validation.isValid) {
+      return sendValidationError(res, validation);
     }
 
     const result = await pool.query(
@@ -635,20 +621,10 @@ router.put("/:id/tasks/:taskId", async (req, res) => {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $7
           AND project_id = $8
-        RETURNING
-          id,
-          project_id,
-          assigned_user_id,
-          title,
-          description,
-          status,
-          priority,
-          due_date,
-          created_at,
-          updated_at
+        RETURNING ${TASK_RETURNING_FIELDS}
       `,
       [
-        responsibleId,
+        validation.responsibleId,
         title.trim(),
         description?.trim() || null,
         normalizeTaskStatus(status),
@@ -683,12 +659,10 @@ router.patch("/:id/tasks/:taskId/toggle", async (req, res) => {
     const userId = req.user.id;
     const { id, taskId } = req.params;
 
-    const hasAccess = await userHasProjectAccess(id, userId);
+    const accessValidation = await validateProjectAccess(id, userId);
 
-    if (!hasAccess) {
-      return res.status(404).json({
-        message: "Projeto não encontrado.",
-      });
+    if (!accessValidation.isValid) {
+      return sendValidationError(res, accessValidation);
     }
 
     const result = await pool.query(
@@ -702,17 +676,7 @@ router.patch("/:id/tasks/:taskId/toggle", async (req, res) => {
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
           AND project_id = $2
-        RETURNING
-          id,
-          project_id,
-          assigned_user_id,
-          title,
-          description,
-          status,
-          priority,
-          due_date,
-          created_at,
-          updated_at
+        RETURNING ${TASK_RETURNING_FIELDS}
       `,
       [taskId, id]
     );
@@ -741,12 +705,10 @@ router.delete("/:id/tasks/:taskId", async (req, res) => {
     const userId = req.user.id;
     const { id, taskId } = req.params;
 
-    const hasAccess = await userHasProjectAccess(id, userId);
+    const accessValidation = await validateProjectAccess(id, userId);
 
-    if (!hasAccess) {
-      return res.status(404).json({
-        message: "Projeto não encontrado.",
-      });
+    if (!accessValidation.isValid) {
+      return sendValidationError(res, accessValidation);
     }
 
     const result = await pool.query(
