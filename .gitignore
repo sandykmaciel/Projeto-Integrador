@@ -16,6 +16,12 @@ pnpm-debug.log*
 # Build
 dist/
 build/
+frontend/dist/
+
+# Coverage
+coverage/
+backend/coverage/
+frontend/coverage/
 
 # Java / class files
 *.class

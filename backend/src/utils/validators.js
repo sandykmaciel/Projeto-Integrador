@@ -1,15 +1,25 @@
 function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!email) {
+    return false;
   }
-  
-  function isValidPassword(password) {
-    const hasMinimumLength = password.length >= 4;
-    const hasUppercaseLetter = /[A-Z]/.test(password);
-  
-    return hasMinimumLength && hasUppercaseLetter;
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  return emailRegex.test(email);
+}
+
+function isValidPassword(password) {
+  if (!password) {
+    return false;
   }
-  
-  module.exports = {
-    isValidEmail,
-    isValidPassword,
-  };
+
+  const hasMinimumLength = password.length >= 4;
+  const hasUppercaseLetter = /[A-Z]/.test(password);
+
+  return hasMinimumLength && hasUppercaseLetter;
+}
+
+module.exports = {
+  isValidEmail,
+  isValidPassword,
+};
