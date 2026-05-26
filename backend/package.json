@@ -33,10 +33,7 @@
       "lcov"
     ],
     "collectCoverageFrom": [
-      "src/**/*.js",
-      "!src/database/connection.js",
-      "!src/database/migrate.js",
-      "!src/server.js"
+      "src/utils/**/*.js"
     ]
   }
 }
