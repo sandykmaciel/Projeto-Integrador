@@ -8,12 +8,6 @@ const priorityLabels = {
   high: "Alta",
 };
 
-const statusLabels = {
-  pending: "Pendente",
-  in_progress: "Em andamento",
-  completed: "Concluída",
-};
-
 export default function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -25,6 +19,7 @@ export default function ProjectDetails() {
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [isTaskPanelOpen, setIsTaskPanelOpen] = useState(false);
+  const [isDeleteProjectModalOpen, setIsDeleteProjectModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [taskFormError, setTaskFormError] = useState("");
   const [error, setError] = useState("");
@@ -188,6 +183,16 @@ export default function ProjectDetails() {
     resetTaskForm();
   }
 
+  function openDeleteProjectModal() {
+    setError("");
+    setFeedback("");
+    setIsDeleteProjectModalOpen(true);
+  }
+
+  function closeDeleteProjectModal() {
+    setIsDeleteProjectModalOpen(false);
+  }
+
   function handleTaskFormChange(event) {
     const { name, value } = event.target;
 
@@ -314,6 +319,26 @@ export default function ProjectDetails() {
     }
   }
 
+  async function handleDeleteProject() {
+    try {
+      setIsUpdatingTask(true);
+      setError("");
+      setFeedback("");
+
+      await api.delete(`/projects/${id}`);
+
+      navigate("/projetos");
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Não foi possível excluir o projeto.";
+
+      setError(message);
+    } finally {
+      setIsUpdatingTask(false);
+      setIsDeleteProjectModalOpen(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <section className="module-screen">
@@ -367,7 +392,11 @@ export default function ProjectDetails() {
             Editar projeto
           </button>
 
-          <button type="button" className="danger-action-button">
+          <button
+            type="button"
+            className="danger-action-button"
+            onClick={openDeleteProjectModal}
+          >
             Excluir projeto
           </button>
         </div>
@@ -702,6 +731,51 @@ export default function ProjectDetails() {
               </div>
             </form>
           </aside>
+        </div>
+      )}
+
+      {isDeleteProjectModalOpen && (
+        <div className="modal-backdrop">
+          <section className="project-modal danger-modal">
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">Excluir projeto</span>
+                <h2>Confirmar exclusão</h2>
+              </div>
+
+              <button type="button" onClick={closeDeleteProjectModal}>
+                ×
+              </button>
+            </div>
+
+            <p>
+              Tem certeza que deseja excluir o projeto{" "}
+              <strong>{project.title}</strong>?
+            </p>
+
+            <div className="delete-warning">
+              Todas as tarefas vinculadas a este projeto também serão removidas.
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action-button"
+                onClick={closeDeleteProjectModal}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                className="danger-action-button"
+                onClick={handleDeleteProject}
+                disabled={isUpdatingTask}
+              >
+                {isUpdatingTask ? "Excluindo..." : "Excluir projeto"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </section>
