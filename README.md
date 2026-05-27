@@ -14,7 +14,7 @@ O objetivo do TaskFlow é oferecer uma plataforma simples e organizada para gere
 
 Na primeira sprint, o foco foi implementar a base do sistema, incluindo cadastro de usuários, login com autenticação, recuperação de senha e estrutura inicial de navegação autenticada.
 
-Na segunda sprint, o foco passou a ser a implementação inicial do módulo de projetos, permitindo visualizar projetos em formato de cards, acompanhar progresso, editar informações, excluir projetos com confirmação e criar projeto com tarefa inicial em um único fluxo.
+Na segunda sprint, o foco passou a ser a implementação inicial do módulo de projetos, permitindo visualizar projetos em formato de cards, acompanhar progresso, editar informações, excluir projetos com confirmação, criar projeto com tarefa inicial em um único fluxo e acessar a página interna de detalhes do projeto para gerenciar tarefas específicas.
 
 ## Integrantes e responsabilidades
 
@@ -22,7 +22,7 @@ Na segunda sprint, o foco passou a ser a implementação inicial do módulo de p
   Responsável pelo desenvolvimento do card de sidebar e navbar fixa, incluindo layout autenticado, navegação lateral, menu de perfil e rotas internas.
 
 - Luiz Carlos de Paiva Silva  
-  Responsável pelo desenvolvimento dos cards de cadastro, login/autenticação e módulo inicial de projetos, incluindo backend, frontend, validações, JWT, recuperação de senha, estrutura de banco, integração com API, Docker, pipeline, testes e SonarCloud.
+  Responsável pelo desenvolvimento dos cards de cadastro, login/autenticação e módulo de projetos, incluindo backend, frontend, validações, JWT, recuperação de senha, estrutura de banco, integração com API, Docker, pipeline, testes, SonarCloud, cards de projetos, criação de projeto com tarefa inicial e página interna de detalhes do projeto.
 
 - Sandy Karolina Maciel  
   Product Owner do projeto, responsável pela organização das demandas, acompanhamento dos critérios de aceitação e realização da maioria das revisões de código nos Pull Requests.
@@ -148,6 +148,29 @@ Na segunda sprint, o foco passou a ser a implementação inicial do módulo de p
 - Criação do projeto e da tarefa inicial em um único fluxo;
 - Atualização automática da listagem de projetos após salvar.
 
+### Página interna de detalhes do projeto
+
+- Acesso à página interna ao clicar em um card de projeto;
+- Rota interna `/projetos/:id`;
+- Exibição do nome do projeto em destaque;
+- Exibição da descrição do projeto;
+- Exibição do total de tarefas vinculadas;
+- Exibição do total de tarefas concluídas;
+- Exibição do progresso atualizado do projeto;
+- Exibição dos membros vinculados ao projeto;
+- Tabela com tarefas específicas do projeto selecionado;
+- Exibição de título, descrição, prioridade, responsável, data final e ações;
+- Filtro de busca por tarefa, descrição ou responsável;
+- Checkbox para marcar tarefa como concluída;
+- Texto riscado para tarefas concluídas;
+- Atualização do progresso ao concluir ou reabrir tarefas;
+- Painel lateral para criação de nova tarefa;
+- Painel lateral para edição de tarefa existente;
+- Exclusão de tarefas vinculadas ao projeto;
+- Botão de exclusão do projeto completo;
+- Modal de confirmação antes da exclusão do projeto;
+- Redirecionamento para `/projetos` após excluir o projeto.
+
 ## Estrutura do projeto
 
 ```txt
@@ -198,6 +221,7 @@ Projeto-Integrador/
 │   │   │   ├── Login.jsx
 │   │   │   ├── Notifications.jsx
 │   │   │   ├── ProfileSettings.jsx
+│   │   │   ├── ProjectDetails.jsx
 │   │   │   ├── Projects.jsx
 │   │   │   ├── Register.jsx
 │   │   │   ├── ResetPassword.jsx
@@ -390,6 +414,7 @@ http://localhost:5173
 /redefinir-senha
 /dashboard
 /projetos
+/projetos/:id
 /tasks
 /todo-list
 /perfil
@@ -398,6 +423,8 @@ http://localhost:5173
 ```
 
 A tela `/projetos` permite visualizar projetos em cards e criar um novo projeto com tarefa inicial por meio da modal `+ Novo projeto`.
+
+A rota `/projetos/:id` exibe a página interna de um projeto específico, contendo resumo, membros, progresso detalhado e gerenciamento das tarefas vinculadas.
 
 ## Principais endpoints do backend
 
@@ -448,6 +475,14 @@ GET /api/projects
 ```
 
 Retorna os projetos do usuário autenticado, incluindo membros, total de tarefas, tarefas concluídas e progresso calculado.
+
+### Detalhes de um projeto
+
+```http
+GET /api/projects/:id
+```
+
+Retorna os dados consolidados de um projeto específico, incluindo membros, total de tarefas, tarefas concluídas e progresso.
 
 ### Criação de projeto
 
@@ -526,6 +561,154 @@ DELETE /api/projects/:id
 ```
 
 Exclui um projeto do usuário autenticado. As tarefas e membros vinculados ao projeto também são removidos por relacionamento em cascata no banco.
+
+### Listagem de tarefas do projeto
+
+```http
+GET /api/projects/:id/tasks
+```
+
+Retorna somente as tarefas vinculadas ao projeto selecionado.
+
+### Criação de tarefa em projeto
+
+```http
+POST /api/projects/:id/tasks
+```
+
+Cria uma nova tarefa vinculada ao projeto selecionado.
+
+Body esperado:
+
+```json
+{
+  "title": "Revisar documentação",
+  "description": "Atualizar README com o fluxo da sprint",
+  "dueDate": "2026-12-10",
+  "priority": "medium",
+  "status": "pending",
+  "assignedUserId": "id_do_responsavel"
+}
+```
+
+### Edição de tarefa do projeto
+
+```http
+PUT /api/projects/:id/tasks/:taskId
+```
+
+Atualiza os dados de uma tarefa vinculada ao projeto selecionado.
+
+### Conclusão de tarefa
+
+```http
+PATCH /api/projects/:id/tasks/:taskId/toggle
+```
+
+Alterna o status da tarefa entre pendente e concluída.
+
+### Exclusão de tarefa
+
+```http
+DELETE /api/projects/:id/tasks/:taskId
+```
+
+Remove uma tarefa específica vinculada ao projeto selecionado.
+
+## Cenários de teste da página interna do projeto
+
+### Acessar detalhes do projeto
+
+1. Fazer login no sistema.
+2. Acessar `/projetos`.
+3. Clicar em um card de projeto.
+
+Resultado esperado:
+
+```txt
+O sistema deve redirecionar para /projetos/:id e exibir o nome, descrição, membros, progresso e tabela de tarefas do projeto selecionado.
+```
+
+### Listar tarefas do projeto
+
+1. Acessar a página interna de um projeto.
+2. Verificar a tabela de tarefas.
+
+Resultado esperado:
+
+```txt
+A tabela deve exibir somente tarefas vinculadas ao projeto selecionado.
+```
+
+### Concluir tarefa
+
+1. Acessar a tabela de tarefas do projeto.
+2. Marcar o checkbox de uma tarefa.
+
+Resultado esperado:
+
+```txt
+A tarefa deve ser marcada como concluída, o texto deve ficar riscado e o progresso do projeto deve ser atualizado.
+```
+
+### Reabrir tarefa concluída
+
+1. Acessar uma tarefa concluída.
+2. Desmarcar o checkbox.
+
+Resultado esperado:
+
+```txt
+A tarefa deve voltar ao estado pendente e o progresso do projeto deve ser recalculado.
+```
+
+### Criar nova tarefa
+
+1. Acessar a página interna do projeto.
+2. Clicar em `+ Nova tarefa`.
+3. Preencher os campos obrigatórios.
+4. Salvar.
+
+Resultado esperado:
+
+```txt
+A tarefa deve ser criada e exibida na tabela sem sair da página do projeto.
+```
+
+### Editar tarefa
+
+1. Clicar no botão de editar de uma tarefa.
+2. Alterar os dados no painel lateral.
+3. Salvar.
+
+Resultado esperado:
+
+```txt
+A tarefa deve ser atualizada na tabela.
+```
+
+### Excluir tarefa
+
+1. Clicar no botão de excluir de uma tarefa.
+2. Confirmar a exclusão.
+
+Resultado esperado:
+
+```txt
+A tarefa deve ser removida da tabela e o progresso deve ser atualizado quando necessário.
+```
+
+### Excluir projeto
+
+1. Acessar a página interna do projeto.
+2. Clicar em `Excluir projeto`.
+3. Confirmar a exclusão.
+
+Resultado esperado:
+
+```txt
+O projeto deve ser removido, suas tarefas vinculadas também devem ser excluídas e o usuário deve ser redirecionado para /projetos.
+```
 
 ## GitHub Projects
 
@@ -646,4 +829,4 @@ A branch `main` possui proteção para exigir Pull Request antes do merge.
 
 O envio real de email na recuperação de senha foi simulado no console do backend durante a Sprint 1. A integração com serviço real de email poderá ser adicionada em uma sprint futura.
 
-O módulo de projetos foi iniciado na Sprint 2 e será evoluído nas próximas etapas com tela interna de detalhes do projeto, gerenciamento completo de tarefas, atualização de status e visualização detalhada do backlog.
+O módulo de projetos foi iniciado na Sprint 2 e seguirá evoluindo nas próximas etapas com melhorias no gerenciamento de tarefas, refinamento de permissões, notificações e acompanhamento mais detalhado das atividades.
