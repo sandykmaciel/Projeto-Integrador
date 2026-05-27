@@ -24,8 +24,20 @@ export default function ProjectDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [isTaskPanelOpen, setIsTaskPanelOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [taskFormError, setTaskFormError] = useState("");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    description: "",
+    dueDate: "",
+    priority: "medium",
+    status: "pending",
+    assignedUserId: "",
+  });
 
   const filteredTasks = useMemo(() => {
     const search = taskSearch.trim().toLowerCase();
@@ -46,6 +58,36 @@ export default function ProjectDetails() {
       );
     });
   }, [taskSearch, tasks]);
+
+  function getDefaultResponsibleId() {
+    return project?.members?.[0]?.id || "";
+  }
+
+  function getTodayInputValue() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  function formatDate(date) {
+    if (!date) {
+      return "-";
+    }
+
+    return new Date(date).toLocaleDateString("pt-BR", {
+      timeZone: "UTC",
+    });
+  }
+
+  function formatDateToInput(date) {
+    if (!date) {
+      return "";
+    }
+
+    return new Date(date).toISOString().split("T")[0];
+  }
+
+  function getMemberInitial(memberName) {
+    return memberName?.charAt(0)?.toUpperCase() || "U";
+  }
 
   async function loadProjectDetails() {
     try {
@@ -96,18 +138,129 @@ export default function ProjectDetails() {
     loadPageData();
   }, [id]);
 
-  function getMemberInitial(memberName) {
-    return memberName?.charAt(0)?.toUpperCase() || "U";
+  function resetTaskForm() {
+    setTaskForm({
+      title: "",
+      description: "",
+      dueDate: "",
+      priority: "medium",
+      status: "pending",
+      assignedUserId: getDefaultResponsibleId(),
+    });
   }
 
-  function formatDate(date) {
-    if (!date) {
-      return "-";
+  function openCreateTaskPanel() {
+    setEditingTask(null);
+    setTaskFormError("");
+    setFeedback("");
+    setError("");
+    setTaskForm({
+      title: "",
+      description: "",
+      dueDate: "",
+      priority: "medium",
+      status: "pending",
+      assignedUserId: getDefaultResponsibleId(),
+    });
+    setIsTaskPanelOpen(true);
+  }
+
+  function openEditTaskPanel(task) {
+    setEditingTask(task);
+    setTaskFormError("");
+    setFeedback("");
+    setError("");
+    setTaskForm({
+      title: task.title || "",
+      description: task.description || "",
+      dueDate: formatDateToInput(task.due_date),
+      priority: task.priority || "medium",
+      status: task.status || "pending",
+      assignedUserId: task.assigned_user_id || getDefaultResponsibleId(),
+    });
+    setIsTaskPanelOpen(true);
+  }
+
+  function closeTaskPanel() {
+    setIsTaskPanelOpen(false);
+    setEditingTask(null);
+    setTaskFormError("");
+    resetTaskForm();
+  }
+
+  function handleTaskFormChange(event) {
+    const { name, value } = event.target;
+
+    setTaskForm((currentData) => ({
+      ...currentData,
+      [name]: value,
+    }));
+  }
+
+  function validateTaskForm() {
+    if (!taskForm.title.trim()) {
+      return "Informe o título da tarefa.";
     }
 
-    return new Date(date).toLocaleDateString("pt-BR", {
-      timeZone: "UTC",
-    });
+    if (!taskForm.dueDate) {
+      return "Informe a data final da tarefa.";
+    }
+
+    if (taskForm.dueDate < getTodayInputValue()) {
+      return "A data final da tarefa não pode ser anterior à data atual.";
+    }
+
+    if (!taskForm.assignedUserId) {
+      return "Informe o responsável pela tarefa.";
+    }
+
+    return "";
+  }
+
+  async function handleSaveTask(event) {
+    event.preventDefault();
+
+    const validationError = validateTaskForm();
+
+    if (validationError) {
+      setTaskFormError(validationError);
+      return;
+    }
+
+    try {
+      setIsUpdatingTask(true);
+      setTaskFormError("");
+      setError("");
+      setFeedback("");
+
+      const payload = {
+        title: taskForm.title.trim(),
+        description: taskForm.description.trim(),
+        dueDate: taskForm.dueDate,
+        priority: taskForm.priority,
+        status: taskForm.status,
+        assignedUserId: taskForm.assignedUserId,
+      };
+
+      if (editingTask) {
+        await api.put(`/projects/${id}/tasks/${editingTask.id}`, payload);
+        setFeedback("Tarefa atualizada com sucesso.");
+      } else {
+        await api.post(`/projects/${id}/tasks`, payload);
+        setFeedback("Tarefa criada com sucesso.");
+      }
+
+      closeTaskPanel();
+
+      await Promise.all([loadProjectDetails(), loadProjectTasks()]);
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Não foi possível salvar a tarefa.";
+
+      setTaskFormError(message);
+    } finally {
+      setIsUpdatingTask(false);
+    }
   }
 
   async function handleToggleTask(taskId) {
@@ -125,6 +278,35 @@ export default function ProjectDetails() {
       const message =
         error.response?.data?.message ||
         "Não foi possível atualizar o status da tarefa.";
+
+      setError(message);
+    } finally {
+      setIsUpdatingTask(false);
+    }
+  }
+
+  async function handleDeleteTask(task) {
+    const shouldDelete = window.confirm(
+      `Deseja excluir a tarefa "${task.title}"?`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      setIsUpdatingTask(true);
+      setError("");
+      setFeedback("");
+
+      await api.delete(`/projects/${id}/tasks/${task.id}`);
+
+      setFeedback("Tarefa excluída com sucesso.");
+
+      await Promise.all([loadProjectDetails(), loadProjectTasks()]);
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Não foi possível excluir a tarefa.";
 
       setError(message);
     } finally {
@@ -279,7 +461,11 @@ export default function ProjectDetails() {
             </p>
           </div>
 
-          <button type="button" className="primary-action-button">
+          <button
+            type="button"
+            className="primary-action-button"
+            onClick={openCreateTaskPanel}
+          >
             + Nova tarefa
           </button>
         </div>
@@ -368,11 +554,19 @@ export default function ProjectDetails() {
 
                       <td>
                         <div className="task-table-actions">
-                          <button type="button" title="Editar tarefa">
+                          <button
+                            type="button"
+                            title="Editar tarefa"
+                            onClick={() => openEditTaskPanel(task)}
+                          >
                             ✎
                           </button>
 
-                          <button type="button" title="Excluir tarefa">
+                          <button
+                            type="button"
+                            title="Excluir tarefa"
+                            onClick={() => handleDeleteTask(task)}
+                          >
                             ×
                           </button>
                         </div>
@@ -384,6 +578,132 @@ export default function ProjectDetails() {
           </table>
         </div>
       </section>
+
+      {isTaskPanelOpen && (
+        <div className="task-side-panel-backdrop">
+          <aside className="task-side-panel">
+            <div className="task-side-panel-header">
+              <div>
+                <span className="eyebrow">
+                  {editingTask ? "Editar tarefa" : "Nova tarefa"}
+                </span>
+
+                <h2>{editingTask ? "Atualizar tarefa" : "Criar tarefa"}</h2>
+              </div>
+
+              <button type="button" onClick={closeTaskPanel}>
+                ×
+              </button>
+            </div>
+
+            {taskFormError && (
+              <div className="feedback-card error modal-feedback">
+                <strong>Erro</strong>
+                <span>{taskFormError}</span>
+              </div>
+            )}
+
+            <form className="task-side-form" onSubmit={handleSaveTask}>
+              <label>
+                Título
+                <input
+                  type="text"
+                  name="title"
+                  placeholder="Ex.: Revisar documentação"
+                  value={taskForm.title}
+                  onChange={handleTaskFormChange}
+                />
+              </label>
+
+              <label>
+                Descrição
+                <textarea
+                  name="description"
+                  placeholder="Descreva os detalhes da atividade"
+                  value={taskForm.description}
+                  onChange={handleTaskFormChange}
+                />
+              </label>
+
+              <label>
+                Data Final
+                <input
+                  type="date"
+                  name="dueDate"
+                  min={getTodayInputValue()}
+                  value={taskForm.dueDate}
+                  onChange={handleTaskFormChange}
+                />
+              </label>
+
+              <label>
+                Responsável
+                <select
+                  name="assignedUserId"
+                  value={taskForm.assignedUserId}
+                  onChange={handleTaskFormChange}
+                >
+                  {project.members?.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Prioridade
+                <select
+                  name="priority"
+                  value={taskForm.priority}
+                  onChange={handleTaskFormChange}
+                >
+                  <option value="low">Baixa</option>
+                  <option value="medium">Média</option>
+                  <option value="high">Alta</option>
+                </select>
+              </label>
+
+              {editingTask && (
+                <label>
+                  Status
+                  <select
+                    name="status"
+                    value={taskForm.status}
+                    onChange={handleTaskFormChange}
+                  >
+                    <option value="pending">Pendente</option>
+                    <option value="in_progress">Em andamento</option>
+                    <option value="completed">Concluída</option>
+                  </select>
+                </label>
+              )}
+
+              <div className="task-side-panel-actions">
+                <button
+                  type="button"
+                  className="secondary-action-button"
+                  onClick={closeTaskPanel}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-action-button"
+                  disabled={isUpdatingTask}
+                >
+                  {isUpdatingTask
+                    ? "Salvando..."
+                    : editingTask
+                      ? "Salvar alterações"
+                      : "Criar tarefa"}
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
     </section>
   );
 }
