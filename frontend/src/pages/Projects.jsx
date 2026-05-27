@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 
 const priorityLabels = {
@@ -9,6 +10,7 @@ const priorityLabels = {
 
 export default function Projects() {
   const currentUser = JSON.parse(localStorage.getItem("taskflow:user") || "null");
+  const navigate = useNavigate();
 
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +26,7 @@ export default function Projects() {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberSearchResults, setMemberSearchResults] = useState([]);
   const [isSearchingMembers, setIsSearchingMembers] = useState(false);
+  const [createModalError, setCreateModalError] = useState("");
 
   const [createForm, setCreateForm] = useState({
     projectTitle: "",
@@ -191,6 +194,7 @@ export default function Projects() {
 
     setFeedback("");
     setError("");
+    setCreateModalError("");
     setMemberSearch("");
     setMemberSearchResults([]);
     setSelectedMembers(defaultMembers);
@@ -206,13 +210,13 @@ export default function Projects() {
     });
     setIsCreateModalOpen(true);
   }
-
   function closeCreateModal() {
     setIsCreateModalOpen(false);
     setMemberSearch("");
     setMemberSearchResults([]);
     setSelectedMembers([]);
     resetCreateForm();
+    setCreateModalError("");
   }
 
   function handleCreateFormChange(event) {
@@ -286,7 +290,7 @@ export default function Projects() {
     const validationError = validateCreateForm();
 
     if (validationError) {
-      setError(validationError);
+      setCreateModalError(validationError);
       return;
     }
 
@@ -322,7 +326,7 @@ export default function Projects() {
         error.response?.data?.message ||
         "Não foi possível criar o projeto com tarefa inicial.";
 
-      setError(message);
+      setCreateModalError(message);
     } finally {
       setIsSaving(false);
     }
@@ -365,7 +369,7 @@ export default function Projects() {
 
     try {
       setIsSaving(true);
-      setError("");
+      setCreateModalError("");
       setFeedback("");
 
       await api.put(`/projects/${editingProject.id}`, {
@@ -485,7 +489,19 @@ export default function Projects() {
       {!isLoading && projects.length > 0 && (
         <section className="projects-grid">
           {projects.map((project) => (
-            <article className="project-card" key={project.id}>
+            <article
+              className="project-card clickable-project-card"
+              key={project.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/projetos/${project.id}`)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  navigate(`/projetos/${project.id}`);
+                }
+              }}
+            >
               <div className="project-card-header">
                 <div>
                   <span className="project-label">Projeto</span>
@@ -496,7 +512,10 @@ export default function Projects() {
                   <button
                     type="button"
                     title="Editar projeto"
-                    onClick={() => openEditModal(project)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openEditModal(project);
+                    }}
                   >
                     ✎
                   </button>
@@ -504,7 +523,10 @@ export default function Projects() {
                   <button
                     type="button"
                     title="Excluir projeto"
-                    onClick={() => openDeleteModal(project)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openDeleteModal(project);
+                    }}
                   >
                     ×
                   </button>
@@ -584,6 +606,13 @@ export default function Projects() {
                 ×
               </button>
             </div>
+
+            {createModalError && (
+              <div className="feedback-card error modal-feedback">
+                <strong>Erro</strong>
+                <span>{createModalError}</span>
+              </div>
+            )}
 
             <div className="project-creation-layout">
               <div className="project-creation-column">
@@ -784,14 +813,13 @@ export default function Projects() {
                         <th>Status</th>
                         <th>Data Final</th>
                         <th>Prioridade</th>
-                        <th>Ações</th>
                       </tr>
                     </thead>
 
                     <tbody>
                       {filteredInitialTasks.length === 0 && (
                         <tr>
-                          <td colSpan="5" className="empty-table-cell">
+                          <td colSpan="4" className="empty-table-cell">
                             Nenhuma tarefa encontrada.
                           </td>
                         </tr>
@@ -817,16 +845,6 @@ export default function Projects() {
                             >
                               {priorityLabels[task.priority]}
                             </span>
-                          </td>
-                          <td>
-                            <div className="task-table-actions">
-                              <button type="button" title="Editar tarefa">
-                                ✎
-                              </button>
-                              <button type="button" title="Excluir tarefa">
-                                ×
-                              </button>
-                            </div>
                           </td>
                         </tr>
                       ))}
