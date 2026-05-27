@@ -1,18 +1,54 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../services/api";
+
+const priorityLabels = {
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+};
+
+const statusLabels = {
+  pending: "Pendente",
+  in_progress: "Em andamento",
+  completed: "Concluída",
+};
 
 export default function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [project, setProject] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [taskSearch, setTaskSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isTasksLoading, setIsTasksLoading] = useState(false);
+  const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState("");
+
+  const filteredTasks = useMemo(() => {
+    const search = taskSearch.trim().toLowerCase();
+
+    if (!search) {
+      return tasks;
+    }
+
+    return tasks.filter((task) => {
+      const title = task.title?.toLowerCase() || "";
+      const description = task.description?.toLowerCase() || "";
+      const responsibleName = task.responsible_name?.toLowerCase() || "";
+
+      return (
+        title.includes(search) ||
+        description.includes(search) ||
+        responsibleName.includes(search)
+      );
+    });
+  }, [taskSearch, tasks]);
 
   async function loadProjectDetails() {
     try {
-      setIsLoading(true);
       setError("");
 
       const response = await api.get(`/projects/${id}`);
@@ -24,17 +60,76 @@ export default function ProjectDetails() {
         "Não foi possível carregar os detalhes do projeto.";
 
       setError(message);
+    }
+  }
+
+  async function loadProjectTasks() {
+    try {
+      setIsTasksLoading(true);
+      setError("");
+
+      const response = await api.get(`/projects/${id}/tasks`);
+
+      setTasks(response.data.tasks);
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Não foi possível carregar as tarefas do projeto.";
+
+      setError(message);
+    } finally {
+      setIsTasksLoading(false);
+    }
+  }
+
+  async function loadPageData() {
+    try {
+      setIsLoading(true);
+
+      await Promise.all([loadProjectDetails(), loadProjectTasks()]);
     } finally {
       setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    loadProjectDetails();
+    loadPageData();
   }, [id]);
 
   function getMemberInitial(memberName) {
     return memberName?.charAt(0)?.toUpperCase() || "U";
+  }
+
+  function formatDate(date) {
+    if (!date) {
+      return "-";
+    }
+
+    return new Date(date).toLocaleDateString("pt-BR", {
+      timeZone: "UTC",
+    });
+  }
+
+  async function handleToggleTask(taskId) {
+    try {
+      setIsUpdatingTask(true);
+      setError("");
+      setFeedback("");
+
+      await api.patch(`/projects/${id}/tasks/${taskId}/toggle`);
+
+      setFeedback("Status da tarefa atualizado com sucesso.");
+
+      await Promise.all([loadProjectDetails(), loadProjectTasks()]);
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Não foi possível atualizar o status da tarefa.";
+
+      setError(message);
+    } finally {
+      setIsUpdatingTask(false);
+    }
   }
 
   if (isLoading) {
@@ -48,7 +143,7 @@ export default function ProjectDetails() {
     );
   }
 
-  if (error) {
+  if (error && !project) {
     return (
       <section className="module-screen">
         <div className="feedback-card error">
@@ -95,6 +190,20 @@ export default function ProjectDetails() {
           </button>
         </div>
       </div>
+
+      {feedback && (
+        <div className="feedback-card success">
+          <strong>Sucesso</strong>
+          <span>{feedback}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="feedback-card error">
+          <strong>Erro</strong>
+          <span>{error}</span>
+        </div>
+      )}
 
       <section className="project-details-summary-grid">
         <article className="project-summary-card">
@@ -165,7 +274,8 @@ export default function ProjectDetails() {
           <div>
             <h2>Tarefas do projeto</h2>
             <p>
-              A tabela detalhada de tarefas será exibida aqui no próximo passo.
+              Visualize o backlog específico deste projeto e atualize o status
+              das atividades.
             </p>
           </div>
 
@@ -174,8 +284,18 @@ export default function ProjectDetails() {
           </button>
         </div>
 
+        <label className="project-task-search">
+          Filtro de busca
+          <input
+            type="text"
+            placeholder="Buscar por tarefa, descrição ou responsável"
+            value={taskSearch}
+            onChange={(event) => setTaskSearch(event.target.value)}
+          />
+        </label>
+
         <div className="tasks-table-wrapper">
-          <table className="tasks-table">
+          <table className="tasks-table project-details-tasks-table">
             <thead>
               <tr>
                 <th>Tarefas</th>
@@ -188,11 +308,78 @@ export default function ProjectDetails() {
             </thead>
 
             <tbody>
-              <tr>
-                <td colSpan="6" className="empty-table-cell">
-                  A listagem de tarefas será implementada no próximo commit.
-                </td>
-              </tr>
+              {isTasksLoading && (
+                <tr>
+                  <td colSpan="6" className="empty-table-cell">
+                    Carregando tarefas...
+                  </td>
+                </tr>
+              )}
+
+              {!isTasksLoading && filteredTasks.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="empty-table-cell">
+                    Nenhuma tarefa encontrada.
+                  </td>
+                </tr>
+              )}
+
+              {!isTasksLoading &&
+                filteredTasks.map((task) => {
+                  const isCompleted = task.status === "completed";
+
+                  return (
+                    <tr
+                      key={task.id}
+                      className={isCompleted ? "completed-task-row" : ""}
+                    >
+                      <td>
+                        <label className="task-check-label">
+                          <input
+                            type="checkbox"
+                            checked={isCompleted}
+                            disabled={isUpdatingTask}
+                            onChange={() => handleToggleTask(task.id)}
+                          />
+
+                          <span>{task.title}</span>
+                        </label>
+                      </td>
+
+                      <td>
+                        <span className="task-description-cell">
+                          {task.description || "Sem descrição"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className={`task-priority-pill ${task.priority}`}>
+                          {priorityLabels[task.priority] || "Média"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="task-responsible">
+                          {task.responsible_name || "Não informado"}
+                        </span>
+                      </td>
+
+                      <td>{formatDate(task.due_date)}</td>
+
+                      <td>
+                        <div className="task-table-actions">
+                          <button type="button" title="Editar tarefa">
+                            ✎
+                          </button>
+
+                          <button type="button" title="Excluir tarefa">
+                            ×
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
