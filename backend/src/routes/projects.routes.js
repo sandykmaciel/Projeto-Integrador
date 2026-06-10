@@ -20,6 +20,18 @@ const TASK_RETURNING_FIELDS = `
   updated_at
 `;
 
+const statusLabels = {
+  pending: "Pendente",
+  in_progress: "Em andamento",
+  completed: "Concluída",
+};
+
+const taskActionDescriptions = {
+  task_created: "criou",
+  task_updated: "atualizou",
+  task_deleted: "excluiu",
+};
+
 function isDateBeforeToday(date) {
   const informedDate = new Date(date);
   const today = new Date();
@@ -46,6 +58,97 @@ function normalizeTaskPriority(priority) {
   const allowedPriorities = ["low", "medium", "high"];
 
   return allowedPriorities.includes(priority) ? priority : "medium";
+}
+
+function getStatusLabel(status) {
+  return statusLabels[status] || status;
+}
+
+function getUserDisplayName(user) {
+  return user?.name || user?.email || "Usuário";
+}
+
+async function createActivityLog({
+  db = pool,
+  projectId,
+  taskId,
+  userId,
+  action,
+  description,
+}) {
+  await db.query(
+    `
+      INSERT INTO activity_logs (
+        project_id,
+        task_id,
+        user_id,
+        action,
+        description
+      )
+      VALUES ($1, $2, $3, $4, $5)
+    `,
+    [projectId, taskId || null, userId || null, action, description]
+  );
+}
+
+async function createTaskHistory({
+  db = pool,
+  projectId,
+  taskId,
+  userId,
+  user,
+  action,
+  taskTitle,
+}) {
+  const actionDescription = taskActionDescriptions[action] || "alterou";
+
+  await createActivityLog({
+    db,
+    projectId,
+    taskId,
+    userId,
+    action,
+    description: `${getUserDisplayName(user)} ${actionDescription} a tarefa "${taskTitle}".`,
+  });
+}
+
+async function createTaskStatusHistory({
+  projectId,
+  taskId,
+  userId,
+  user,
+  taskTitle,
+  previousStatus,
+  nextStatus,
+}) {
+  await createActivityLog({
+    projectId,
+    taskId,
+    userId,
+    action: "task_status_changed",
+    description: `${getUserDisplayName(user)} alterou o status da tarefa "${taskTitle}" de "${getStatusLabel(previousStatus)}" para "${getStatusLabel(nextStatus)}".`,
+  });
+}
+
+async function findTaskByProject(taskId, projectId, fields = "id, title, status") {
+  const result = await pool.query(
+    `
+      SELECT ${fields}
+      FROM tasks
+      WHERE id = $1
+        AND project_id = $2
+      LIMIT 1
+    `,
+    [taskId, projectId]
+  );
+
+  return result.rows[0] || null;
+}
+
+function sendTaskNotFound(res) {
+  return res.status(404).json({
+    message: "Tarefa não encontrada.",
+  });
 }
 
 function buildProjectDetailsQuery(whereClause) {
@@ -445,12 +548,24 @@ router.post("/with-initial-task", async (req, res) => {
       ]
     );
 
+    const createdTask = taskResult.rows[0];
+
+    await createTaskHistory({
+      db: client,
+      projectId: createdProject.id,
+      taskId: createdTask.id,
+      userId,
+      user: req.user,
+      action: "task_created",
+      taskTitle: createdTask.title,
+    });
+
     await client.query("COMMIT");
 
     return res.status(201).json({
       message: "Projeto e tarefa inicial criados com sucesso.",
       project: createdProject,
-      task: taskResult.rows[0],
+      task: createdTask,
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -513,9 +628,20 @@ router.post("/:id/tasks", async (req, res) => {
       ]
     );
 
+    const createdTask = result.rows[0];
+
+    await createTaskHistory({
+      projectId: id,
+      taskId: createdTask.id,
+      userId,
+      user: req.user,
+      action: "task_created",
+      taskTitle: createdTask.title,
+    });
+
     return res.status(201).json({
       message: "Tarefa criada com sucesso.",
-      task: result.rows[0],
+      task: createdTask,
     });
   } catch (error) {
     console.error("Create project task error:", error);
@@ -608,6 +734,12 @@ router.put("/:id/tasks/:taskId", async (req, res) => {
       return sendValidationError(res, validation);
     }
 
+    const currentTask = await findTaskByProject(taskId, id);
+
+    if (!currentTask) {
+      return sendTaskNotFound(res);
+    }
+
     const result = await pool.query(
       `
         UPDATE tasks
@@ -636,14 +768,35 @@ router.put("/:id/tasks/:taskId", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Tarefa não encontrada.",
+      return sendTaskNotFound(res);
+    }
+
+    const updatedTask = result.rows[0];
+
+    if (currentTask.status !== updatedTask.status) {
+      await createTaskStatusHistory({
+        projectId: id,
+        taskId,
+        userId,
+        user: req.user,
+        taskTitle: updatedTask.title,
+        previousStatus: currentTask.status,
+        nextStatus: updatedTask.status,
+      });
+    } else {
+      await createTaskHistory({
+        projectId: id,
+        taskId,
+        userId,
+        user: req.user,
+        action: "task_updated",
+        taskTitle: updatedTask.title,
       });
     }
 
     return res.status(200).json({
       message: "Tarefa atualizada com sucesso.",
-      task: result.rows[0],
+      task: updatedTask,
     });
   } catch (error) {
     console.error("Update project task error:", error);
@@ -665,6 +818,12 @@ router.patch("/:id/tasks/:taskId/toggle", async (req, res) => {
       return sendValidationError(res, accessValidation);
     }
 
+    const currentTask = await findTaskByProject(taskId, id);
+
+    if (!currentTask) {
+      return sendTaskNotFound(res);
+    }
+
     const result = await pool.query(
       `
         UPDATE tasks
@@ -682,14 +841,24 @@ router.patch("/:id/tasks/:taskId/toggle", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Tarefa não encontrada.",
-      });
+      return sendTaskNotFound(res);
     }
+
+    const updatedTask = result.rows[0];
+
+    await createTaskStatusHistory({
+      projectId: id,
+      taskId,
+      userId,
+      user: req.user,
+      taskTitle: updatedTask.title,
+      previousStatus: currentTask.status,
+      nextStatus: updatedTask.status,
+    });
 
     return res.status(200).json({
       message: "Status da tarefa atualizado com sucesso.",
-      task: result.rows[0],
+      task: updatedTask,
     });
   } catch (error) {
     console.error("Toggle project task error:", error);
@@ -711,6 +880,12 @@ router.delete("/:id/tasks/:taskId", async (req, res) => {
       return sendValidationError(res, accessValidation);
     }
 
+    const currentTask = await findTaskByProject(taskId, id, "id, title");
+
+    if (!currentTask) {
+      return sendTaskNotFound(res);
+    }
+
     const result = await pool.query(
       `
         DELETE FROM tasks
@@ -722,10 +897,17 @@ router.delete("/:id/tasks/:taskId", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Tarefa não encontrada.",
-      });
+      return sendTaskNotFound(res);
     }
+
+    await createTaskHistory({
+      projectId: id,
+      taskId: null,
+      userId,
+      user: req.user,
+      action: "task_deleted",
+      taskTitle: currentTask.title,
+    });
 
     return res.status(200).json({
       message: "Tarefa excluída com sucesso.",
