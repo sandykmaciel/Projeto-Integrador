@@ -33,7 +33,8 @@
       "lcov"
     ],
     "collectCoverageFrom": [
-      "src/utils/**/*.js"
+      "src/utils/**/*.js",
+      "src/services/notificationWorker.js"
     ]
   }
 }
