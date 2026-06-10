@@ -98,4 +98,6 @@ function startNotificationWorker() {
 module.exports = {
   startNotificationWorker,
   generateDueDateNotifications,
+  getRemainingTimeMessage,
+  WORKER_INTERVAL_MS,
 };
