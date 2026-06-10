@@ -128,6 +128,55 @@ async function migrate() {
       ON tasks (assigned_user_id);
 `);
 
+await pool.query(`
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_id UUID NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  project_id UUID NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title VARCHAR(180) NOT NULL,
+  message TEXT NOT NULL,
+  priority VARCHAR(40) NOT NULL DEFAULT 'medium',
+  type VARCHAR(60) NOT NULL DEFAULT 'due_date',
+  due_date TIMESTAMP NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+await pool.query(`
+CREATE INDEX IF NOT EXISTS notifications_user_created_idx
+ON notifications (user_id, created_at DESC);
+`);
+
+await pool.query(`
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_due_task_user_unique_idx
+ON notifications (user_id, task_id, type)
+WHERE task_id IS NOT NULL AND type = 'due_date';
+`);
+
+await pool.query(`
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  task_id UUID NULL REFERENCES tasks(id) ON DELETE SET NULL,
+  user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL,
+  action VARCHAR(120) NOT NULL,
+  description TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+await pool.query(`
+CREATE INDEX IF NOT EXISTS activity_logs_project_created_idx
+ON activity_logs (project_id, created_at DESC);
+`);
+
+await pool.query(`
+CREATE INDEX IF NOT EXISTS activity_logs_user_created_idx
+ON activity_logs (user_id, created_at DESC);
+`);
+
     console.log("Migrations executed successfully.");
   } catch (error) {
     console.error("Migration failed:", error);
