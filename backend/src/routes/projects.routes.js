@@ -20,6 +20,12 @@ const TASK_RETURNING_FIELDS = `
   updated_at
 `;
 
+const statusLabels = {
+  pending: "Pendente",
+  in_progress: "Em andamento",
+  completed: "Concluída",
+};
+
 function isDateBeforeToday(date) {
   const informedDate = new Date(date);
   const today = new Date();
@@ -46,6 +52,37 @@ function normalizeTaskPriority(priority) {
   const allowedPriorities = ["low", "medium", "high"];
 
   return allowedPriorities.includes(priority) ? priority : "medium";
+}
+
+function getStatusLabel(status) {
+  return statusLabels[status] || status;
+}
+
+function getUserDisplayName(user) {
+  return user?.name || user?.email || "Usuário";
+}
+
+async function createActivityLog({
+  db = pool,
+  projectId,
+  taskId,
+  userId,
+  action,
+  description,
+}) {
+  await db.query(
+    `
+      INSERT INTO activity_logs (
+        project_id,
+        task_id,
+        user_id,
+        action,
+        description
+      )
+      VALUES ($1, $2, $3, $4, $5)
+    `,
+    [projectId, taskId || null, userId || null, action, description]
+  );
 }
 
 function buildProjectDetailsQuery(whereClause) {
@@ -445,12 +482,23 @@ router.post("/with-initial-task", async (req, res) => {
       ]
     );
 
+    const createdTask = taskResult.rows[0];
+
+    await createActivityLog({
+      db: client,
+      projectId: createdProject.id,
+      taskId: createdTask.id,
+      userId,
+      action: "task_created",
+      description: `${getUserDisplayName(req.user)} criou a tarefa "${createdTask.title}".`,
+    });
+
     await client.query("COMMIT");
 
     return res.status(201).json({
       message: "Projeto e tarefa inicial criados com sucesso.",
       project: createdProject,
-      task: taskResult.rows[0],
+      task: createdTask,
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -513,9 +561,19 @@ router.post("/:id/tasks", async (req, res) => {
       ]
     );
 
+    const createdTask = result.rows[0];
+
+    await createActivityLog({
+      projectId: id,
+      taskId: createdTask.id,
+      userId,
+      action: "task_created",
+      description: `${getUserDisplayName(req.user)} criou a tarefa "${createdTask.title}".`,
+    });
+
     return res.status(201).json({
       message: "Tarefa criada com sucesso.",
-      task: result.rows[0],
+      task: createdTask,
     });
   } catch (error) {
     console.error("Create project task error:", error);
@@ -608,6 +666,25 @@ router.put("/:id/tasks/:taskId", async (req, res) => {
       return sendValidationError(res, validation);
     }
 
+    const currentTaskResult = await pool.query(
+      `
+        SELECT id, title, status
+        FROM tasks
+        WHERE id = $1
+          AND project_id = $2
+        LIMIT 1
+      `,
+      [taskId, id]
+    );
+
+    if (currentTaskResult.rows.length === 0) {
+      return res.status(404).json({
+        message: "Tarefa não encontrada.",
+      });
+    }
+
+    const currentTask = currentTaskResult.rows[0];
+
     const result = await pool.query(
       `
         UPDATE tasks
@@ -641,9 +718,29 @@ router.put("/:id/tasks/:taskId", async (req, res) => {
       });
     }
 
+    const updatedTask = result.rows[0];
+
+    if (currentTask.status !== updatedTask.status) {
+      await createActivityLog({
+        projectId: id,
+        taskId,
+        userId,
+        action: "task_status_changed",
+        description: `${getUserDisplayName(req.user)} alterou o status da tarefa "${updatedTask.title}" de "${getStatusLabel(currentTask.status)}" para "${getStatusLabel(updatedTask.status)}".`,
+      });
+    } else {
+      await createActivityLog({
+        projectId: id,
+        taskId,
+        userId,
+        action: "task_updated",
+        description: `${getUserDisplayName(req.user)} atualizou a tarefa "${updatedTask.title}".`,
+      });
+    }
+
     return res.status(200).json({
       message: "Tarefa atualizada com sucesso.",
-      task: result.rows[0],
+      task: updatedTask,
     });
   } catch (error) {
     console.error("Update project task error:", error);
@@ -664,6 +761,25 @@ router.patch("/:id/tasks/:taskId/toggle", async (req, res) => {
     if (!accessValidation.isValid) {
       return sendValidationError(res, accessValidation);
     }
+
+    const currentTaskResult = await pool.query(
+      `
+        SELECT id, title, status
+        FROM tasks
+        WHERE id = $1
+          AND project_id = $2
+        LIMIT 1
+      `,
+      [taskId, id]
+    );
+
+    if (currentTaskResult.rows.length === 0) {
+      return res.status(404).json({
+        message: "Tarefa não encontrada.",
+      });
+    }
+
+    const currentTask = currentTaskResult.rows[0];
 
     const result = await pool.query(
       `
@@ -687,9 +803,19 @@ router.patch("/:id/tasks/:taskId/toggle", async (req, res) => {
       });
     }
 
+    const updatedTask = result.rows[0];
+
+    await createActivityLog({
+      projectId: id,
+      taskId,
+      userId,
+      action: "task_status_changed",
+      description: `${getUserDisplayName(req.user)} alterou o status da tarefa "${updatedTask.title}" de "${getStatusLabel(currentTask.status)}" para "${getStatusLabel(updatedTask.status)}".`,
+    });
+
     return res.status(200).json({
       message: "Status da tarefa atualizado com sucesso.",
-      task: result.rows[0],
+      task: updatedTask,
     });
   } catch (error) {
     console.error("Toggle project task error:", error);
@@ -711,6 +837,25 @@ router.delete("/:id/tasks/:taskId", async (req, res) => {
       return sendValidationError(res, accessValidation);
     }
 
+    const currentTaskResult = await pool.query(
+      `
+        SELECT id, title
+        FROM tasks
+        WHERE id = $1
+          AND project_id = $2
+        LIMIT 1
+      `,
+      [taskId, id]
+    );
+
+    if (currentTaskResult.rows.length === 0) {
+      return res.status(404).json({
+        message: "Tarefa não encontrada.",
+      });
+    }
+
+    const currentTask = currentTaskResult.rows[0];
+
     const result = await pool.query(
       `
         DELETE FROM tasks
@@ -726,6 +871,14 @@ router.delete("/:id/tasks/:taskId", async (req, res) => {
         message: "Tarefa não encontrada.",
       });
     }
+
+    await createActivityLog({
+      projectId: id,
+      taskId: null,
+      userId,
+      action: "task_deleted",
+      description: `${getUserDisplayName(req.user)} excluiu a tarefa "${currentTask.title}".`,
+    });
 
     return res.status(200).json({
       message: "Tarefa excluída com sucesso.",
