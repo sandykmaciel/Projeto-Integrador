@@ -1,5 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
+
+const priorityLabels = {
+  low: "Baixa",
+  medium: "Média",
+  high: "Alta",
+};
+
+const priorityOrder = {
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 function getPercentage(value, total) {
   if (!total) {
@@ -7,6 +19,17 @@ function getPercentage(value, total) {
   }
 
   return Math.round((value / total) * 100);
+}
+
+function formatDateTime(date) {
+  if (!date) {
+    return "-";
+  }
+
+  return new Date(date).toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 
 function DonutChart({ title, completed, pending, total }) {
@@ -74,8 +97,40 @@ export default function Dashboard() {
     priorityTasks: [],
   });
 
+  const [deadlineSort, setDeadlineSort] = useState("date");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const sortedPriorityTasks = useMemo(() => {
+    const tasks = [...(summary.priorityTasks || [])];
+
+    if (deadlineSort === "priority") {
+      return tasks.sort((firstTask, secondTask) => {
+        const firstPriority =
+          firstTask.priority_weight || priorityOrder[firstTask.priority] || 0;
+        const secondPriority =
+          secondTask.priority_weight || priorityOrder[secondTask.priority] || 0;
+
+        if (secondPriority !== firstPriority) {
+          return secondPriority - firstPriority;
+        }
+
+        return new Date(firstTask.due_date || 0) - new Date(secondTask.due_date || 0);
+      });
+    }
+
+    return tasks.sort((firstTask, secondTask) => {
+      const firstDate = firstTask.due_date
+        ? new Date(firstTask.due_date).getTime()
+        : Number.MAX_SAFE_INTEGER;
+
+      const secondDate = secondTask.due_date
+        ? new Date(secondTask.due_date).getTime()
+        : Number.MAX_SAFE_INTEGER;
+
+      return firstDate - secondDate;
+    });
+  }, [summary.priorityTasks, deadlineSort]);
 
   async function loadDashboardSummary() {
     try {
@@ -170,6 +225,86 @@ export default function Dashboard() {
               pending={summary.projectsSummary?.pending || 0}
               total={summary.projectsSummary?.total || 0}
             />
+          </section>
+
+          <section className="project-details-panel">
+            <div className="project-details-panel-header">
+              <div>
+                <h2>Prioridade de Prazos</h2>
+                <p>
+                  Tarefas pendentes organizadas por urgência para facilitar a
+                  priorização do trabalho.
+                </p>
+              </div>
+
+              <div className="deadline-sort-group">
+                <button
+                  type="button"
+                  className={
+                    deadlineSort === "date" ? "filter-chip active" : "filter-chip"
+                  }
+                  onClick={() => setDeadlineSort("date")}
+                >
+                  Ordenar por data
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    deadlineSort === "priority"
+                      ? "filter-chip active"
+                      : "filter-chip"
+                  }
+                  onClick={() => setDeadlineSort("priority")}
+                >
+                  Ordenar por prioridade
+                </button>
+              </div>
+            </div>
+
+            <div className="tasks-table-wrapper">
+              <table className="tasks-table dashboard-deadline-table">
+                <thead>
+                  <tr>
+                    <th>Prioridade</th>
+                    <th>Nome do Projeto</th>
+                    <th>Tarefa</th>
+                    <th>Data Inicial</th>
+                    <th>Data Final</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {sortedPriorityTasks.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="empty-table-cell">
+                        Nenhuma tarefa pendente encontrada.
+                      </td>
+                    </tr>
+                  )}
+
+                  {sortedPriorityTasks.map((task) => (
+                    <tr key={task.id}>
+                      <td>
+                        <span className={`task-priority-pill ${task.priority}`}>
+                          {priorityLabels[task.priority] || "Média"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <strong>{task.project_title}</strong>
+                      </td>
+
+                      <td>{task.task_title}</td>
+
+                      <td>{formatDateTime(task.created_at)}</td>
+
+                      <td>{formatDateTime(task.due_date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         </>
       )}

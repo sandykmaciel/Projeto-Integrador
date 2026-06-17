@@ -2531,3 +2531,27 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.deadline-sort-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dashboard-deadline-table td {
+  vertical-align: middle;
+}
+
+.dashboard-deadline-table td strong {
+  color: #172033;
+}
+
+@media (max-width: 760px) {
+  .deadline-sort-group {
+    width: 100%;
+  }
+
+  .deadline-sort-group button {
+    flex: 1;
+  }
+}
