@@ -9,6 +9,7 @@ const historyRoutes = require("./routes/history.routes");
 const notificationsRoutes = require("./routes/notifications.routes");
 const { startNotificationWorker } = require("./services/notificationWorker");
 const dashboardRoutes = require("./routes/dashboard.routes");
+const tasksRoutes = require("./routes/tasks.routes");
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/tasks", tasksRoutes);
 
 const PORT = process.env.PORT || 3333;
 
