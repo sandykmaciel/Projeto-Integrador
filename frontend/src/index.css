@@ -2795,3 +2795,60 @@ a:hover {
     flex-direction: column;
   }
 }
+
+.project-edit-panel {
+  border-color: rgba(111, 99, 255, 0.22);
+}
+
+.project-edit-form {
+  display: grid;
+  gap: 16px;
+}
+
+.project-edit-form label {
+  display: grid;
+  gap: 8px;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.project-edit-form input,
+.project-edit-form textarea {
+  width: 100%;
+  border: 1px solid #d0d7e2;
+  border-radius: 14px;
+  padding: 13px 14px;
+  outline: none;
+  color: #172033;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.project-edit-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.project-edit-form input:focus,
+.project-edit-form textarea:focus {
+  border-color: #6f63ff;
+  box-shadow: 0 0 0 4px rgba(111, 99, 255, 0.12);
+}
+
+.project-edit-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 680px) {
+  .project-edit-form-actions {
+    flex-direction: column;
+  }
+
+  .project-edit-form-actions button {
+    width: 100%;
+  }
+}
