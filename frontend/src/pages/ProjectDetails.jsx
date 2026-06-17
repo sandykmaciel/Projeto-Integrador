@@ -18,12 +18,20 @@ export default function ProjectDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [isUpdatingProject, setIsUpdatingProject] = useState(false);
   const [isTaskPanelOpen, setIsTaskPanelOpen] = useState(false);
+  const [isEditingProject, setIsEditingProject] = useState(false);
   const [isDeleteProjectModalOpen, setIsDeleteProjectModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [taskFormError, setTaskFormError] = useState("");
+  const [projectFormError, setProjectFormError] = useState("");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+
+  const [projectForm, setProjectForm] = useState({
+    title: "",
+    description: "",
+  });
 
   const [taskForm, setTaskForm] = useState({
     title: "",
@@ -183,6 +191,26 @@ export default function ProjectDetails() {
     resetTaskForm();
   }
 
+  function openEditProjectForm() {
+    setProjectFormError("");
+    setFeedback("");
+    setError("");
+    setProjectForm({
+      title: project.title || "",
+      description: project.description || "",
+    });
+    setIsEditingProject(true);
+  }
+
+  function closeEditProjectForm() {
+    setIsEditingProject(false);
+    setProjectFormError("");
+    setProjectForm({
+      title: "",
+      description: "",
+    });
+  }
+
   function openDeleteProjectModal() {
     setError("");
     setFeedback("");
@@ -197,6 +225,15 @@ export default function ProjectDetails() {
     const { name, value } = event.target;
 
     setTaskForm((currentData) => ({
+      ...currentData,
+      [name]: value,
+    }));
+  }
+
+  function handleProjectFormChange(event) {
+    const { name, value } = event.target;
+
+    setProjectForm((currentData) => ({
       ...currentData,
       [name]: value,
     }));
@@ -220,6 +257,49 @@ export default function ProjectDetails() {
     }
 
     return "";
+  }
+
+  function validateProjectForm() {
+    if (!projectForm.title.trim()) {
+      return "Informe o título do projeto.";
+    }
+
+    return "";
+  }
+
+  async function handleSaveProject(event) {
+    event.preventDefault();
+
+    const validationError = validateProjectForm();
+
+    if (validationError) {
+      setProjectFormError(validationError);
+      return;
+    }
+
+    try {
+      setIsUpdatingProject(true);
+      setProjectFormError("");
+      setError("");
+      setFeedback("");
+
+      await api.put(`/projects/${id}`, {
+        title: projectForm.title.trim(),
+        description: projectForm.description.trim(),
+      });
+
+      setFeedback("Projeto atualizado com sucesso.");
+      setIsEditingProject(false);
+
+      await loadProjectDetails();
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Não foi possível atualizar o projeto.";
+
+      setProjectFormError(message);
+    } finally {
+      setIsUpdatingProject(false);
+    }
   }
 
   async function handleSaveTask(event) {
@@ -388,7 +468,11 @@ export default function ProjectDetails() {
         </div>
 
         <div className="project-details-actions">
-          <button type="button" className="secondary-action-button">
+          <button
+            type="button"
+            className="secondary-action-button"
+            onClick={openEditProjectForm}
+          >
             Editar projeto
           </button>
 
@@ -414,6 +498,66 @@ export default function ProjectDetails() {
           <strong>Erro</strong>
           <span>{error}</span>
         </div>
+      )}
+
+      {isEditingProject && (
+        <section className="project-details-panel project-edit-panel">
+          <div className="project-details-panel-header">
+            <div>
+              <h2>Editar projeto</h2>
+              <p>Atualize o nome e a descrição do projeto sem sair da página.</p>
+            </div>
+          </div>
+
+          {projectFormError && (
+            <div className="feedback-card error modal-feedback">
+              <strong>Erro</strong>
+              <span>{projectFormError}</span>
+            </div>
+          )}
+
+          <form className="project-edit-form" onSubmit={handleSaveProject}>
+            <label>
+              Nome do projeto
+              <input
+                type="text"
+                name="title"
+                placeholder="Ex.: Projeto Integrador"
+                value={projectForm.title}
+                onChange={handleProjectFormChange}
+              />
+            </label>
+
+            <label>
+              Descrição
+              <textarea
+                name="description"
+                placeholder="Descreva o objetivo do projeto"
+                value={projectForm.description}
+                onChange={handleProjectFormChange}
+              />
+            </label>
+
+            <div className="project-edit-form-actions">
+              <button
+                type="button"
+                className="secondary-action-button"
+                onClick={closeEditProjectForm}
+                disabled={isUpdatingProject}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                className="primary-action-button"
+                disabled={isUpdatingProject}
+              >
+                {isUpdatingProject ? "Salvando..." : "Salvar alterações"}
+              </button>
+            </div>
+          </form>
+        </section>
       )}
 
       <section className="project-details-summary-grid">
