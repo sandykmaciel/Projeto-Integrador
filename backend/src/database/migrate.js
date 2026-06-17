@@ -128,7 +128,7 @@ async function migrate() {
       ON tasks (assigned_user_id);
 `);
 
-await pool.query(`
+    await pool.query(`
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -144,18 +144,18 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 `);
 
-await pool.query(`
+    await pool.query(`
 CREATE INDEX IF NOT EXISTS notifications_user_created_idx
 ON notifications (user_id, created_at DESC);
 `);
 
-await pool.query(`
+    await pool.query(`
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_due_task_user_unique_idx
 ON notifications (user_id, task_id, type)
 WHERE task_id IS NOT NULL AND type = 'due_date';
 `);
 
-await pool.query(`
+    await pool.query(`
 CREATE TABLE IF NOT EXISTS activity_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -167,14 +167,45 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 );
 `);
 
-await pool.query(`
+    await pool.query(`
 CREATE INDEX IF NOT EXISTS activity_logs_project_created_idx
 ON activity_logs (project_id, created_at DESC);
 `);
 
-await pool.query(`
+    await pool.query(`
 CREATE INDEX IF NOT EXISTS activity_logs_user_created_idx
 ON activity_logs (user_id, created_at DESC);
+`);
+
+    await pool.query(`
+CREATE TABLE IF NOT EXISTS todo_lists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(160) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+    await pool.query(`
+CREATE INDEX IF NOT EXISTS todo_lists_user_created_idx
+ON todo_lists (user_id, created_at DESC);
+`);
+
+    await pool.query(`
+CREATE TABLE IF NOT EXISTS todo_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  list_id UUID NOT NULL REFERENCES todo_lists(id) ON DELETE CASCADE,
+  title VARCHAR(220) NOT NULL,
+  is_checked BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+    await pool.query(`
+CREATE INDEX IF NOT EXISTS todo_items_list_created_idx
+ON todo_items (list_id, created_at ASC);
 `);
 
     console.log("Migrations executed successfully.");
