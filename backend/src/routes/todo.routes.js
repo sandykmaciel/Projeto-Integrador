@@ -7,6 +7,32 @@ const router = express.Router();
 
 router.use(ensureAuthenticated);
 
+function sendError(res, status, message) {
+  return res.status(status).json({
+    message,
+  });
+}
+
+function sendInternalError(res, error, logMessage, responseMessage) {
+  console.error(logMessage, error);
+
+  return sendError(res, 500, responseMessage);
+}
+
+function validateTitle(title, message) {
+  if (!title || !title.trim()) {
+    return {
+      isValid: false,
+      message,
+    };
+  }
+
+  return {
+    isValid: true,
+    title: title.trim(),
+  };
+}
+
 async function findUserTodoList(listId, userId) {
   const result = await pool.query(
     `
@@ -20,6 +46,62 @@ async function findUserTodoList(listId, userId) {
   );
 
   return result.rows[0] || null;
+}
+
+async function validateUserTodoList(listId, userId) {
+  const list = await findUserTodoList(listId, userId);
+
+  if (!list) {
+    return {
+      isValid: false,
+      status: 404,
+      message: "Lista não encontrada.",
+    };
+  }
+
+  return {
+    isValid: true,
+    list,
+  };
+}
+
+async function runTodoItemAction({
+  req,
+  res,
+  action,
+  successMessage,
+  notFoundMessage,
+  internalLogMessage,
+  internalResponseMessage,
+}) {
+  try {
+    const userId = req.user.id;
+    const { listId, itemId } = req.params;
+
+    const listValidation = await validateUserTodoList(listId, userId);
+
+    if (!listValidation.isValid) {
+      return sendError(res, listValidation.status, listValidation.message);
+    }
+
+    const result = await action({ listId, itemId });
+
+    if (result.rows.length === 0) {
+      return sendError(res, 404, notFoundMessage);
+    }
+
+    return res.status(200).json({
+      message: successMessage,
+      item: result.rows[0],
+    });
+  } catch (error) {
+    return sendInternalError(
+      res,
+      error,
+      internalLogMessage,
+      internalResponseMessage
+    );
+  }
 }
 
 router.get("/lists", async (req, res) => {
@@ -60,23 +142,25 @@ router.get("/lists", async (req, res) => {
       lists: result.rows,
     });
   } catch (error) {
-    console.error("List todo lists error:", error);
-
-    return res.status(500).json({
-      message: "Erro interno ao listar listas.",
-    });
+    return sendInternalError(
+      res,
+      error,
+      "List todo lists error:",
+      "Erro interno ao listar listas."
+    );
   }
 });
 
 router.post("/lists", async (req, res) => {
   try {
     const userId = req.user.id;
-    const { title } = req.body;
+    const titleValidation = validateTitle(
+      req.body.title,
+      "Informe o título da lista."
+    );
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        message: "Informe o título da lista.",
-      });
+    if (!titleValidation.isValid) {
+      return sendError(res, 400, titleValidation.message);
     }
 
     const result = await pool.query(
@@ -85,7 +169,7 @@ router.post("/lists", async (req, res) => {
         VALUES ($1, $2)
         RETURNING id, title, created_at, updated_at
       `,
-      [userId, title.trim()]
+      [userId, titleValidation.title]
     );
 
     return res.status(201).json({
@@ -96,11 +180,12 @@ router.post("/lists", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Create todo list error:", error);
-
-    return res.status(500).json({
-      message: "Erro interno ao criar lista.",
-    });
+    return sendInternalError(
+      res,
+      error,
+      "Create todo list error:",
+      "Erro interno ao criar lista."
+    );
   }
 });
 
@@ -120,20 +205,19 @@ router.delete("/lists/:listId", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Lista não encontrada.",
-      });
+      return sendError(res, 404, "Lista não encontrada.");
     }
 
     return res.status(200).json({
       message: "Lista removida com sucesso.",
     });
   } catch (error) {
-    console.error("Delete todo list error:", error);
-
-    return res.status(500).json({
-      message: "Erro interno ao remover lista.",
-    });
+    return sendInternalError(
+      res,
+      error,
+      "Delete todo list error:",
+      "Erro interno ao remover lista."
+    );
   }
 });
 
@@ -141,20 +225,19 @@ router.post("/lists/:listId/items", async (req, res) => {
   try {
     const userId = req.user.id;
     const { listId } = req.params;
-    const { title } = req.body;
+    const titleValidation = validateTitle(
+      req.body.title,
+      "Informe o nome do item."
+    );
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        message: "Informe o nome do item.",
-      });
+    if (!titleValidation.isValid) {
+      return sendError(res, 400, titleValidation.message);
     }
 
-    const list = await findUserTodoList(listId, userId);
+    const listValidation = await validateUserTodoList(listId, userId);
 
-    if (!list) {
-      return res.status(404).json({
-        message: "Lista não encontrada.",
-      });
+    if (!listValidation.isValid) {
+      return sendError(res, listValidation.status, listValidation.message);
     }
 
     const result = await pool.query(
@@ -163,7 +246,7 @@ router.post("/lists/:listId/items", async (req, res) => {
         VALUES ($1, $2)
         RETURNING id, title, is_checked, created_at, updated_at
       `,
-      [listId, title.trim()]
+      [listId, titleValidation.title]
     );
 
     return res.status(201).json({
@@ -171,98 +254,58 @@ router.post("/lists/:listId/items", async (req, res) => {
       item: result.rows[0],
     });
   } catch (error) {
-    console.error("Create todo item error:", error);
-
-    return res.status(500).json({
-      message: "Erro interno ao adicionar item.",
-    });
-  }
-});
-
-router.patch("/lists/:listId/items/:itemId/toggle", async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { listId, itemId } = req.params;
-
-    const list = await findUserTodoList(listId, userId);
-
-    if (!list) {
-      return res.status(404).json({
-        message: "Lista não encontrada.",
-      });
-    }
-
-    const result = await pool.query(
-      `
-        UPDATE todo_items
-        SET
-          is_checked = NOT is_checked,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-          AND list_id = $2
-        RETURNING id, title, is_checked, created_at, updated_at
-      `,
-      [itemId, listId]
+    return sendInternalError(
+      res,
+      error,
+      "Create todo item error:",
+      "Erro interno ao adicionar item."
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Item não encontrado.",
-      });
-    }
-
-    return res.status(200).json({
-      message: "Item atualizado com sucesso.",
-      item: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Toggle todo item error:", error);
-
-    return res.status(500).json({
-      message: "Erro interno ao atualizar item.",
-    });
   }
 });
 
-router.delete("/lists/:listId/items/:itemId", async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { listId, itemId } = req.params;
+router.patch("/lists/:listId/items/:itemId/toggle", async (req, res) =>
+  runTodoItemAction({
+    req,
+    res,
+    successMessage: "Item atualizado com sucesso.",
+    notFoundMessage: "Item não encontrado.",
+    internalLogMessage: "Toggle todo item error:",
+    internalResponseMessage: "Erro interno ao atualizar item.",
+    action: ({ listId, itemId }) =>
+      pool.query(
+        `
+          UPDATE todo_items
+          SET
+            is_checked = NOT is_checked,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+            AND list_id = $2
+          RETURNING id, title, is_checked, created_at, updated_at
+        `,
+        [itemId, listId]
+      ),
+  })
+);
 
-    const list = await findUserTodoList(listId, userId);
-
-    if (!list) {
-      return res.status(404).json({
-        message: "Lista não encontrada.",
-      });
-    }
-
-    const result = await pool.query(
-      `
-        DELETE FROM todo_items
-        WHERE id = $1
-          AND list_id = $2
-        RETURNING id
-      `,
-      [itemId, listId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        message: "Item não encontrado.",
-      });
-    }
-
-    return res.status(200).json({
-      message: "Item removido com sucesso.",
-    });
-  } catch (error) {
-    console.error("Delete todo item error:", error);
-
-    return res.status(500).json({
-      message: "Erro interno ao remover item.",
-    });
-  }
-});
+router.delete("/lists/:listId/items/:itemId", async (req, res) =>
+  runTodoItemAction({
+    req,
+    res,
+    successMessage: "Item removido com sucesso.",
+    notFoundMessage: "Item não encontrado.",
+    internalLogMessage: "Delete todo item error:",
+    internalResponseMessage: "Erro interno ao remover item.",
+    action: ({ listId, itemId }) =>
+      pool.query(
+        `
+          DELETE FROM todo_items
+          WHERE id = $1
+            AND list_id = $2
+          RETURNING id
+        `,
+        [itemId, listId]
+      ),
+  })
+);
 
 module.exports = router;
