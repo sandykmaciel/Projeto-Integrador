@@ -770,18 +770,15 @@ Sugestão de divisão:
 
 ```txt
 Frontend: Vercel
-Backend: Render, Railway ou Fly.io
-Banco PostgreSQL: Render PostgreSQL, Railway PostgreSQL ou Neon
+Backend: Render
+Banco PostgreSQL: Render PostgreSQL
 ```
 
 Link de deploy:
 
 ```txt
-A definir após publicação da versão final
+https://projeto-integrador-phi-two.vercel.app
 ```
-
-Após a publicação, atualizar este trecho com o endereço final da aplicação.
-
 ## Principais rotas do frontend
 
 ```txt
