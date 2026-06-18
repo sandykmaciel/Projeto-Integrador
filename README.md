@@ -14,7 +14,7 @@ Repositório: https://github.com/sandykmaciel/Projeto-Integrador
 
 SonarCloud: https://sonarcloud.io/summary/new_code?id=sandykmaciel_Projeto-Integrador
 
-Deploy: A definir após publicação da versão final
+Deploy: https://projeto-integrador-phi-two.vercel.app
 
 ## Objetivo do produto
 
